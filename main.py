@@ -31,8 +31,36 @@ validColours = {
     'coral': [255, 127, 80]
 }
 
-def isValidHex(data):
-    dataList = data.split(" ")
+validPulseCode = {
+    'gb': 0x2F,
+    'rb': 0x2E,
+    'rg': 0x2D,
+    'white': 0x2C,
+    'purple': 0x2B,
+    'cyan': 0x2A,
+    'yellow': 0x29,
+    'blue': 0x28,
+    'green': 0x27,
+    'red': 0x26,
+    'rgb': 0x61,
+    'all': 0x25
+}
+
+validFlashCode = {
+    'rgb': 0x62,
+    'all': 0x38,
+    'white': 0x37,
+    'purple': 0x36,
+    'cyan': 0x35,
+    'yellow': 0x34,
+    'blue': 0x33,
+    'green': 0x32,
+    'red': 0x31,
+    'eyesore': 0x30
+}
+
+
+def isValidHex(dataList):
     if len(dataList)==3:
         flag = True
     else:
@@ -45,32 +73,68 @@ def isValidHex(data):
             break
     return flag
 
+def isValidFlash(dataList):
+    if ((len(dataList)==3 or len(dataList)==2) and dataList[0] in ['f','flash']):
+        if (dataList[1] in validFlashCode.keys()):
+            return True
+    return False
+
+def isValidPulse(dataList):
+    if ((len(dataList)==3 or len(dataList)==2) and dataList[0] in ['p','pulse']):
+        if (dataList[1] in validPulseCode.keys()):
+            return True
+    return False
+    
+def setInterval(dataList):
+    if (len(dataList)==3):
+        if (dataList[2].isnumeric()):
+            var = int(dataList[2])
+            if var>10:
+                var = 0x00
+            elif var<1:
+                var = 0x10
+            else:
+                var = 10 - var
+                var = 0x0 << 4 | var
+            return var
+        else:
+            return 0x00
+    else:
+        return 0x00
+
 async def send_data(address, char_uuid):
     async with BleakClient(address) as client:
         while True:
-            # Get user input for RGB values
             user_input = input("Enter Command:\n")
-            if user_input.lower() in ['exit','quit']:
+            base = user_input.lower()
+            if base in ['exit','quit']:
                 break
             
             try:
-                if (user_input.lower()=='on'):   
-                    await client.write_gatt_char(uuid, bytearray([0xcc,0x23,0x33]))
-                elif (user_input.lower()=='off'):
-                    await client.write_gatt_char(uuid, bytearray([0xcc,0x24,0x33]))
+                if (base=='on'):   
+                    await client.write_gatt_char(char_uuid, bytearray([0xcc,0x23,0x33]))
+                elif (base=='off'):
+                    await client.write_gatt_char(char_uuid, bytearray([0xcc,0x24,0x33]))
                 else:
-                    r, g, b = 0, 0, 0
-                    if (user_input.lower() in validColours.keys()):
-                        r, g, b = map(int, validColours[user_input.lower()])
+                    if (isValidPulse(base.split())):
+                        data_packet = bytearray([0xbb, validPulseCode[base.split()[1]], setInterval(base.split()), 0x44])
+                        await client.write_gatt_char(char_uuid, data_packet)
+                    elif (isValidFlash(base.split())):
+                        data_packet = bytearray([0xbb, validFlashCode[base.split()[1]], setInterval(base.split()), 0x44])
+                        await client.write_gatt_char(char_uuid, data_packet)
                     else:
-                        if (isValidHex(user_input)):
-                            r, g, b = map(int, user_input.split())
+                        r, g, b = 0, 0, 0
+                        if (base in validColours.keys()):
+                            r, g, b = map(int, validColours[base])
                         else:
-                            print("Invalid Command. Try Again!")
-                            continue
-                    data_packet = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
-                    #RGB from second byte
-                    await client.write_gatt_char(uuid, data_packet)
+                            if (isValidHex(base.split())):
+                                r, g, b = map(int, base.split())
+                            else:
+                                print("Invalid Command. Try Again!")
+                                continue
+                        data_packet = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
+                        #RGB from second byte
+                        await client.write_gatt_char(char_uuid, data_packet)
             except:
                 print("Something went wrong. Please restart the program.")
                 break
