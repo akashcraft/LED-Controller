@@ -110,7 +110,7 @@ def main():
 
     #Basic Elements
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="1.0.0", font=CTkFont(size=15)) #Version
+    heading2 = CTkLabel(root, text="Beta Build", font=CTkFont(size=15)) #Version
     connect_button = CTkButton(basicframe, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     red_button = CTkButton(basicframe, text="Red", fg_color="red", hover_color="#AA0000", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=lambda: sendCmd('red'))
     green_button = CTkButton(basicframe, text="Green", fg_color="green", hover_color="#00AA00", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=lambda: sendCmd('green'))
