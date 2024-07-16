@@ -1,9 +1,44 @@
-import asyncio
+import asyncio, os, time
 from bleak import BleakClient
 
 bd_addr = "32:06:C2:00:0A:9E"
 uuid = "FFD9"
+manual = True
+step = 0
 
+def isPlayerValid(dataList):
+    if ((len(dataList)==1) and dataList[0] in ['s','start']):
+        return True
+    return False
+
+def extractCmd(line):
+    global prevTime,step
+    line = line.split()
+    if len(line)==0:
+        return "red",0
+    else:
+        delay = float(line[0])
+        del line[0]
+        cmd = ""
+        for i in line:
+            if cmd == "":
+                cmd = cmd+i
+            else:
+                cmd = cmd+" "+i
+        return cmd, delay
+
+def getCmd():
+    file_path = os.path.join(os.pardir,"music.mp3")
+    try:
+        os.startfile(file_path)
+        fobj = open(os.path.join(os.pardir,"music.txt"),"r")
+        cmd = fobj.readlines()
+        time.sleep(0.8)
+        return True,len(cmd),cmd
+    except:
+        print("Error Opening Files")
+        return False,None,None
+    
 validColours = {
     'red': [255, 0, 0],
     'green': [0, 255, 0],
@@ -103,40 +138,53 @@ def setInterval(dataList):
         return 0x00
 
 async def send_data(address, char_uuid):
+    global manual,step
     async with BleakClient(address) as client:
         while True:
-            user_input = input("Enter Command:\n")
-            base = user_input.lower()
-            if base in ['exit','quit']:
-                break
-            
-            try:
-                if (base=='on'):   
-                    await client.write_gatt_char(char_uuid, bytearray([0xcc,0x23,0x33]))
-                elif (base=='off'):
-                    await client.write_gatt_char(char_uuid, bytearray([0xcc,0x24,0x33]))
+            if manual:
+                user_input = input("Enter Command:\n")
+                base = user_input.lower()
+                if base in ['exit','quit']:
+                    break
+            else:
+                if (step!=stepmax):
+                    base, delay = extractCmd(cmds[step])
+                    time.sleep(delay)
                 else:
-                    if (isValidPulse(base.split())):
-                        data_packet = bytearray([0xbb, validPulseCode[base.split()[1]], setInterval(base.split()), 0x44])
-                        await client.write_gatt_char(char_uuid, data_packet)
-                    elif (isValidFlash(base.split())):
-                        data_packet = bytearray([0xbb, validFlashCode[base.split()[1]], setInterval(base.split()), 0x44])
-                        await client.write_gatt_char(char_uuid, data_packet)
+                    step = 0
+                    manual = True
+                    continue
+            
+            if (base=='on'):   
+                await client.write_gatt_char(char_uuid, bytearray([0xcc,0x23,0x33]))
+            elif (base=='off'):
+                await client.write_gatt_char(char_uuid, bytearray([0xcc,0x24,0x33]))
+            else:
+                if (isPlayerValid(base.split())):
+                    valid, stepmax, cmds = getCmd()
+                    if valid:
+                        manual = False
+                    continue
+                if (isValidPulse(base.split())):
+                    data_packet = bytearray([0xbb, validPulseCode[base.split()[1]], setInterval(base.split()), 0x44])
+                    await client.write_gatt_char(char_uuid, data_packet)
+                elif (isValidFlash(base.split())):
+                    data_packet = bytearray([0xbb, validFlashCode[base.split()[1]], setInterval(base.split()), 0x44])
+                    await client.write_gatt_char(char_uuid, data_packet)
+                else:
+                    r, g, b = 0, 0, 0
+                    if (base in validColours.keys()):
+                        r, g, b = map(int, validColours[base])
                     else:
-                        r, g, b = 0, 0, 0
-                        if (base in validColours.keys()):
-                            r, g, b = map(int, validColours[base])
+                        if (isValidHex(base.split())):
+                            r, g, b = map(int, base.split())
                         else:
-                            if (isValidHex(base.split())):
-                                r, g, b = map(int, base.split())
-                            else:
-                                print("Invalid Command. Try Again!")
-                                continue
-                        data_packet = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
-                        #RGB from second byte
-                        await client.write_gatt_char(char_uuid, data_packet)
-            except:
-                print("Something went wrong. Please restart the program.")
-                break
+                            print("Invalid Command. Try Again!")
+                            continue
+                    data_packet = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
+                    #RGB from second byte
+                    await client.write_gatt_char(char_uuid, data_packet)
+            if manual==False:
+                step=step+1
 
 asyncio.run(send_data(bd_addr, uuid))
