@@ -1,14 +1,39 @@
 #LightCraft Source Code
 #Made by Akash Samanta
 
-import asyncio, threading, os, time
+import asyncio, threading, os, time, webbrowser
 from bleak import BleakClient
+from PIL import Image
 from customtkinter import *
 import tkinter as tk
 
 root = CTk()
 address = "32:06:C2:00:0A:9E"
 char_uuid = "FFD9"
+
+validColours = {
+    'red': [255, 0, 0],
+    'orange': [204, 51, 0],
+    'yellow': [153, 102, 0],
+    'brown': [153, 153, 0],
+    'gold': [204, 204, 0],
+    'green': [0, 255, 0],
+    'olive': [75, 128, 0],
+    'lime': [0, 128, 75],    
+    'coral': [0, 128, 128],
+    'cyan': [0, 238, 238],
+    'blue': [0, 0, 255],
+    'teal': [0, 75, 128],
+    'indigo': [75, 0, 128],
+    'purple': [128, 0, 128],
+    'violet': [238, 0, 238],
+    'magenta': [255, 0, 255],
+    'black': [0, 0, 0],
+    'white': [255, 255, 255],
+    'pink': [255, 0, 40],
+    'navy': [255, 0, 128],
+    'maroon': [255, 0, 204],
+}
 
 class BluetoothController:
     def __init__(self, address, char_uuid):
@@ -58,22 +83,21 @@ def main():
     def disconnect():
         controller.run_coroutine(controller.disconnect())
 
-    def sendCmd(colour):
-        if colour=='red':
-            data = bytearray([0x56, 0xff, 0x00, 0x00, 0x00, 0xf0, 0xaa])
-        elif colour=='green':
-            data = bytearray([0x56, 0x00, 0xff, 0x00, 0x00, 0xf0, 0xaa])
-        else:
-            data = bytearray([0x56, 0x00, 0x00, 0xff, 0x00, 0xf0, 0xaa])
-
+    def sendColour(r,g,b):
+        data = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
         controller.run_coroutine(controller.sendCmd(data))
     
+    def sgButton(frame,row,col,colour):
+        r, g, b = map(int, validColours[colour])
+        return CTkButton(frame,text="", fg_color="#{:02x}{:02x}{:02x}".format(r, g, b), hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=bheight, command=lambda: sendColour(r,g,b)).grid(row=row,column=col,padx=(10,0),pady=(10,0))
+
     def destroyer(relaunch=False):
         global root
-        if relaunch==False:
-            ans = tk.messagebox.askyesno("Close LightCraft","Are you sure you want to close LightCraft?") #Confirm Quit
-        else:
-            ans = True
+        #TO DO Settings Ask for Confirmation
+        #if relaunch==False:
+        #    ans = tk.messagebox.askyesno("Close LightCraft","Are you sure you want to close LightCraft?") #Confirm Quit
+        #else:
+        ans = True
         if ans:        
             if relaunch:
                 root.destroy()
@@ -93,39 +117,73 @@ def main():
     root.title("LightCraft")
     root.protocol("WM_DELETE_WINDOW", destroyer)
     root.iconbitmap(r".\Resources\logo.ico")
+
+    #TO DO Settings
     #applysettings()
     userwinx = root.winfo_screenwidth()
     userwiny = root.winfo_screenheight()
-    x = (userwinx)//2
-    y = (userwiny)//2
-    root.geometry(f"250x300+{x}+{y}")
+    x = (userwinx)//3
+    y = (userwiny)//3
+    root.geometry(f"700x400+{x}+{y}")
 
     #Frames
     basicframe=CTkFrame(root)
+    sgframe=CTkFrame(basicframe, fg_color="transparent")
 
     #Button Scaling
     bsize=16
     bheight=35
     bwidth=150
+    sgwidth=35
+    sgheight=35
+    sgradius=40
+
+    #Images
+    try:
+        image1 = Image.open(r".\Resources\logo.png")
+    except:
+        tk.messagebox.showerror("Missing Resources","LightCraft could not find critical resources. The Resources folder may have been corrupted or deleted. Please re-install LightCraft from official sources.") #Missing Resources
+        quit()
+    imgtk1 = CTkImage(light_image=image1,size=(60,60))
 
     #Basic Elements
+    headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"),hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Beta Build", font=CTkFont(size=15)) #Version
-    connect_button = CTkButton(basicframe, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
-    red_button = CTkButton(basicframe, text="Red", fg_color="red", hover_color="#AA0000", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=lambda: sendCmd('red'))
-    green_button = CTkButton(basicframe, text="Green", fg_color="green", hover_color="#00AA00", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=lambda: sendCmd('green'))
-    blue_button = CTkButton(basicframe, text="Blue", fg_color="blue", hover_color="#0000AA", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=lambda: sendCmd('blue'))
+    heading2 = CTkLabel(root, text="Version 1.0.1 (Beta)", font=CTkFont(size=13)) #Version
+    connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
 
-    heading1.pack(fill=X,expand=True,side=tk.TOP,pady=(10,2))
-    heading2.pack(fill=Y,expand=True,side=tk.TOP,pady=0)
-    basicframe.pack(fill=BOTH, expand=True,pady=10,padx=10)
-    basicframe.grid_columnconfigure(0,weight=1)
-    connect_button.grid(row=1,column=0,padx=20,pady=(10,5))
-    red_button.grid(row=2,column=0,padx=20,pady=5)
-    green_button.grid(row=3,column=0,padx=20,pady=5)
-    blue_button.grid(row=4,column=0,padx=20,pady=(5,10))
+    root.grid_columnconfigure(1,weight=1)
+    root.grid_rowconfigure(2,weight=1)
+    headinglogo.grid(row=0,column=0,rowspan=2,pady=10, sticky='w')
+    heading1.grid(row=0,column=1,pady=0, sticky='sw')
+    heading2.grid(row=1,column=1,pady=0, sticky='nw')
+    connect_button.grid(row=0,column=2,rowspan=2,padx=10, sticky='e')
+    basicframe.grid(row=2,column=0,columnspan=3,padx=10, pady=10, sticky='nsew')
+    basicframe.grid_columnconfigure(1,weight=1)
+    sgframe.grid(row=0,column=0,padx=10,pady=10)
+    sgButton(sgframe, 0, 0, "red")
+    sgButton(sgframe, 0, 1, "green")
+    sgButton(sgframe, 0, 2, "blue")
+    sgButton(sgframe, 0, 3, "maroon")
+    sgButton(sgframe, 1, 0, "orange")
+    sgButton(sgframe, 1, 1, "olive")
+    sgButton(sgframe, 1, 2, "teal")
+    sgButton(sgframe, 1, 3, "navy")
+    sgButton(sgframe, 2, 0, "yellow")
+    sgButton(sgframe, 2, 1, "lime")
+    sgButton(sgframe, 2, 2, "indigo")
+    sgButton(sgframe, 2, 3, "pink")
+    sgButton(sgframe, 3, 0, "brown")
+    sgButton(sgframe, 3, 1, "coral")
+    sgButton(sgframe, 3, 2, "purple")
+    sgButton(sgframe, 3, 3, "black")
+    sgButton(sgframe, 4, 0, "gold")
+    sgButton(sgframe, 4, 1, "cyan")
+    sgButton(sgframe, 4, 2, "violet")
+    sgButton(sgframe, 4, 3, "white")
 
-    root.after(20,connect)
+    #TO DO Settings Auto Reconnect
+    #root.after(20,connect)
     root.mainloop()
 
 if __name__ == "__main__":

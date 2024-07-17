@@ -1,7 +1,7 @@
 # LightCraft
 Software to control Bluetooth LED Strips like QHM-0A9E
 
-![image](https://github.com/user-attachments/assets/b2da74a4-dba6-4750-90f2-f4f872a2b8c0)
+<img width=600px src="https://github.com/user-attachments/assets/2b842b30-9303-430c-9ac6-cfd6d8ca6d31">
 
 ## Features
 - Auto Connect
@@ -23,14 +23,15 @@ There are no available release as of now but you may choose to run the source co
 - Python [Get it here](https://www.python.org/downloads/release/)
 - customtkinter [Get it here](https://github.com/TomSchimansky/CustomTkinter)
 - bleak [Get it here](https://github.com/hbldh/bleak)
+- pillow
   
-Install via the [requirements.txt](https://github.com/user-attachments/files/16243451/requirements.txt)
+Install via the `requirements.txt`
 ```
 pip install -r requirements.txt
 ```
 or simply paste the following in terminal
 ```
-pip install customtkinter, bleak
+pip install customtkinter, bleak, pillow
 ```
 Clone this Repository by
 ```
