@@ -148,7 +148,7 @@ async def send_data(address, char_uuid):
                     break
             else:
                 if (step!=stepmax):
-                    base, delay = extractCmd(cmds[step])
+                    base, delay = extractCmd(cmds[step]) # type: ignore
                     time.sleep(delay)
                 else:
                     step = 0

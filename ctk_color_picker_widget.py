@@ -32,7 +32,7 @@ class CTkColorPicker(customtkinter.CTkFrame):
         self.lift()
 
         self.after(10)       
-        self.default_hex_color = "#ffffff"  
+        self.default_hex_color = "#FFFFFF"  
         self.default_rgb = [255, 255, 255]
         self.rgb_color_store = self.default_rgb
         self.rgb_avail = False
@@ -144,7 +144,7 @@ class CTkColorPicker(customtkinter.CTkFrame):
         self.slider.configure(progress_color=self.default_hex_color)
         self.label.configure(fg_color=self.default_hex_color)
         
-        self.label.configure(text=str(self.default_hex_color))
+        self.label.configure(text=str(self.default_hex_color).upper())
         
         if self.brightness_slider_value.get() < 130:
             self.label.configure(text_color="white")

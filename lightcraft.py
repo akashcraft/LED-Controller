@@ -4,9 +4,10 @@
 import asyncio, threading, os, time, webbrowser
 from bleak import BleakClient
 from PIL import Image
-from customtkinter import *
+from customtkinter import * # type: ignore
 import tkinter as tk
-from CTkColorPicker import *
+from tkinter import messagebox
+from CTkColorPicker import * # type: ignore
 from functools import wraps
 
 root = CTk()
@@ -37,6 +38,34 @@ validColours = {
     'pink': [255, 0, 40],
     'navy': [255, 0, 128],
     'maroon': [255, 0, 204],
+}
+
+validFlashCode = {
+    'rgb_flash': 0x62,
+    'all_flash': 0x38,
+    'white_flash': 0x37,
+    'purple_flash': 0x36,
+    'cyan_flash': 0x35,
+    'yellow_flash': 0x34,
+    'blue_flash': 0x33,
+    'green_flash': 0x32,
+    'red_flash': 0x31,
+    'eyesore_flash': 0x30
+}
+
+validPulseCode = {
+    'gb_pulse': 0x2F,
+    'rb_pulse': 0x2E,
+    'rg_pulse': 0x2D,
+    'white_pulse': 0x2C,
+    'purple_pulse': 0x2B,
+    'cyan_pulse': 0x2A,
+    'yellow_pulse': 0x29,
+    'blue_pulse': 0x28,
+    'green_pulse': 0x27,
+    'red_pulse': 0x26,
+    'rgb_pulse': 0x61,
+    'all_pulse': 0x25
 }
 
 class BluetoothController:
@@ -77,7 +106,7 @@ def main():
             def debounced(*args, **kwargs):
                 now = time.time()
                 if now - last_call[0] >= wait:
-                    last_call[0] = now
+                    last_call[0] = now # type: ignore
                     return fn(*args, **kwargs)
             return debounced
         return decorator
@@ -101,7 +130,7 @@ def main():
                 connect_button.configure(text="Connected", fg_color="green", hover_color="#00AA00", state="normal")
             else:
                 connect_button.configure(text="Reconnect", fg_color="red", hover_color="#AA0000", state="normal")
-                tk.messagebox.showerror("Connection Failure", "LightCraft failed to connect with your LED Strips. Please make sure that your Bluetooth is turned on and that your LED Strips are not bonded with another device. Verify the MAC Address in Settings.")
+                tk.messagebox.showerror("Connection Failure", "LightCraft failed to connect with your LED Strips. Please make sure that your Bluetooth is turned on and that your LED Strips are not bonded with another device. Verify the MAC Address in Settings.") # type: ignore
         else:
             root.after(20, lambda: check_connection(future))
 
@@ -140,14 +169,29 @@ def main():
         data = bytearray([0x56, int(data[0:2], 16), int(data[2:4], 16), int(data[4:6], 16), 0x00, 0xf0, 0xaa])
         controller.run_coroutine(controller.sendCmd(data))
 
+    @debounce(0.1)
     def sendColour(r,g,b):
         colorpicker.update_colors(r,g,b)
         data = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
         controller.run_coroutine(controller.sendCmd(data))
     
+    def sendColourWB(r,g,b):
+        colorpicker.update_colors(r,g,b)
+        sendHex(colorpicker.label.cget("text"))
+
+    @debounce(0.1)
+    def sendPulse():
+        data = bytearray([0xbb,validPulseCode[pulseflash_var.get()],0x05,0x44])
+        controller.run_coroutine(controller.sendCmd(data))
+
+    @debounce(0.1)
+    def sendFlash():
+        data = bytearray([0xbb,validFlashCode[pulseflash_var.get()],0x05,0x44])
+        controller.run_coroutine(controller.sendCmd(data))
+    
     def sgButton(frame,row,col,colour):
         r, g, b = map(int, validColours[colour])
-        return CTkButton(frame,text="", fg_color="#{:02x}{:02x}{:02x}".format(r, g, b), hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColour(r,g,b)).grid(row=row,column=col,padx=(10,0),pady=(10,0))
+        return CTkButton(frame,text="", fg_color="#{:02x}{:02x}{:02x}".format(r, g, b), hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourWB(r,g,b)).grid(row=row,column=col,padx=(10,0),pady=(10,0))
 
     def destroyer(relaunch=False):
         global root
@@ -182,7 +226,7 @@ def main():
     userwiny = root.winfo_screenheight()
     x = (userwinx)//3
     y = (userwiny)//3
-    root.geometry(f"700x410+{x}+{y}")
+    root.geometry(f"750x410+{x}+{y}")
     root.resizable(False,False)
 
     #Frames
@@ -191,34 +235,54 @@ def main():
     mainframe.add("Music")
     mainframe.add("Settings")
     sgframe=CTkFrame(mainframe.tab("Control"), fg_color="transparent")
+    mgframe=CTkFrame(mainframe.tab("Control"), fg_color="transparent")
 
     #Button Scaling
     bsize=16
     bheight=35
     bwidth=150
-    sgwidth=35
-    sgheight=35
-    sgradius=40
+    sgwidth=37
+    sgheight=37
+    sgradius=50
 
     #Images
     try:
         image1 = Image.open(r".\Resources\logo.png")
         image2 = Image.open(r".\Resources\onButton.png")
         image3 = Image.open(r".\Resources\offButton.png")
+        image4 = Image.open(r".\Resources\pulseHint.png")
+        image5 = Image.open(r".\Resources\flashHint.png")
     except:
-        tk.messagebox.showerror("Missing Resources","LightCraft could not find critical resources. The Resources folder may have been corrupted or deleted. Please re-install LightCraft from official sources.") #Missing Resources
+        tk.messagebox.showerror("Missing Resources","LightCraft could not find critical resources. The Resources folder may have been corrupted or deleted. Please re-install LightCraft from official sources.") # type: ignore #Missing Resources
         quit()
     imgtk1 = CTkImage(light_image=image1,size=(60,60))
     imgtk2 = CTkImage(light_image=image2,size=(25,25))
     imgtk3 = CTkImage(light_image=image3,size=(25,25))
+    imgtk4 = CTkImage(light_image=image4,size=(25,25))
+    imgtk5 = CTkImage(light_image=image5,size=(25,25))
 
     #Basic Elements
-    headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"),hover=False, fg_color="transparent")
+    headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.0.2 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 1.3.0 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color="#333333", image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
-    colorpicker = CTkColorPicker(mainframe.tab("Control"), width=250, orientation=HORIZONTAL, command=lambda e: sendHex(e))
+    colorpicker = CTkColorPicker(mainframe.tab("Control"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
+    pulseflash_var = tk.StringVar(value='all_pulse')
+    rainbowPulse = CTkRadioButton(mgframe, text="Rainbow", command=sendPulse, variable= pulseflash_var, value='all_pulse')
+    rgbPulse = CTkRadioButton(mgframe, text="RGB", command=sendPulse, variable= pulseflash_var, value='rgb_pulse')
+    redPulse = CTkRadioButton(mgframe, text="Red", command=sendPulse, variable= pulseflash_var, value='red_pulse')
+    greenPulse = CTkRadioButton(mgframe, text="Green", command=sendPulse, variable= pulseflash_var, value='green_pulse')
+    bluePulse = CTkRadioButton(mgframe, text="Blue", command=sendPulse, variable= pulseflash_var, value='blue_pulse')
+    whitePulse = CTkRadioButton(mgframe, text="White", command=sendPulse, variable= pulseflash_var, value='white_pulse')
+    rainbowFlash = CTkRadioButton(mgframe, text="Rainbow", command=sendFlash, variable= pulseflash_var, value='all_flash')
+    rgbFlash = CTkRadioButton(mgframe, text="RGB", command=sendFlash, variable= pulseflash_var, value='rgb_flash')
+    redFlash = CTkRadioButton(mgframe, text="Red", command=sendFlash, variable= pulseflash_var, value='red_flash')
+    greenFlash = CTkRadioButton(mgframe, text="Green", command=sendFlash, variable= pulseflash_var, value='green_flash')
+    blueFlash = CTkRadioButton(mgframe, text="Blue", command=sendFlash, variable= pulseflash_var, value='blue_flash')
+    whiteFlash = CTkRadioButton(mgframe, text="White", command=sendFlash, variable= pulseflash_var, value='white_flash')
+    pulseHint = CTkButton(mgframe, text="Pulse", width=20, image=imgtk4, hover=False, fg_color="transparent")
+    flashHint = CTkButton(mgframe, text="Flash", width=20, image=imgtk5, hover=False, fg_color="transparent")
 
     root.grid_columnconfigure(1,weight=1)
     root.grid_rowconfigure(2,weight=1)
@@ -228,7 +292,7 @@ def main():
     connect_button.grid(row=0,column=2,rowspan=2,padx=0, sticky='e')
     power_button.grid(row=0,column=3,rowspan=2,padx=10, sticky='e')
     mainframe.grid(row=2,column=0,columnspan=4,padx=10, pady=(0,10), sticky='nsew')
-    mainframe.tab("Control").grid_columnconfigure(2,weight=1)
+    mainframe.tab("Control").grid_columnconfigure(1,weight=1)
     sgframe.grid(row=0,column=0,padx=10,pady=10, sticky='n')
     sgButton(sgframe, 0, 0, "red")
     sgButton(sgframe, 0, 1, "green")
@@ -250,18 +314,48 @@ def main():
     sgButton(sgframe, 4, 1, "cyan")
     sgButton(sgframe, 4, 2, "violet")
     sgButton(sgframe, 4, 3, "white")
-    colorpicker.grid(row=0,column=1,padx=42,pady=10,sticky='n')
+    sgButton(sgframe, 0, 4, "white")
+    sgButton(sgframe, 1, 4, "white")
+    sgButton(sgframe, 2, 4, "white")
+    sgButton(sgframe, 3, 4, "white")
+    sgButton(sgframe, 4, 4, "white")
+    colorpicker.grid(row=0,column=1,pady=10,sticky='n')
+    mgframe.grid(row=0,column=2,padx=10,pady=10, sticky='n')
+    pulseHint.grid(row=0,column=0,pady=(5,0), sticky='w')
+    flashHint.grid(row=0,column=1,pady=(5,0), sticky='w')
+    rainbowPulse.grid(row=1,column=0,pady=(8,0), padx=10, sticky='e')
+    rgbPulse.grid(row=2,column=0,pady=(10,0), padx=10, sticky='e')
+    redPulse.grid(row=3,column=0,pady=(10,0), padx=10, sticky='e')
+    greenPulse.grid(row=4,column=0,pady=(10,0), padx=10, sticky='e')
+    bluePulse.grid(row=5,column=0,pady=(10,0), padx=10, sticky='e')
+    whitePulse.grid(row=6,column=0,pady=(10,0), padx=10, sticky='e')
+    rainbowFlash.grid(row=1,column=1,pady=(10,0), padx=10, sticky='e')
+    rgbFlash.grid(row=2,column=1,pady=(10,0), padx=10, sticky='e')
+    redFlash.grid(row=3,column=1,pady=(10,0), padx=10, sticky='e')
+    greenFlash.grid(row=4,column=1,pady=(10,0), padx=10, sticky='e')
+    blueFlash.grid(row=5,column=1,pady=(10,0), padx=10, sticky='e')
+    whiteFlash.grid(row=6,column=1,pady=(10,0), padx=10, sticky='e')
 
     #Key Binds
-    root.bind("<KeyRelease-r>",lambda e:sendColour(255,0,0))
-    root.bind("<KeyRelease-g>",lambda e:sendColour(0,255,0))
-    root.bind("<KeyRelease-b>",lambda e:sendColour(0,0,255))
-    root.bind("<KeyRelease-w>",lambda e:sendColour(255,255,255))
-    root.bind("<KeyRelease-p>",lambda e:sendColour(255,0,40))
+    root.bind("<KeyRelease-r>",lambda e:sendColourWB(255,0,0))
+    root.bind("<KeyRelease-g>",lambda e:sendColourWB(0,255,0))
+    root.bind("<KeyRelease-b>",lambda e:sendColourWB(0,0,255))
+    root.bind("<KeyRelease-w>",lambda e:sendColourWB(255,255,255))
+    root.bind("<KeyRelease-p>",lambda e:sendColourWB(255,0,40))
     root.bind("<KeyRelease-c>",lambda e:connect())
     root.bind("<space>",lambda e:togglePower())
     root.bind("<Up>",lambda e:setBrightness(True))
     root.bind("<Down>",lambda e:setBrightness(False))
+    root.bind("<KeyRelease-1>",lambda e:rainbowPulse.invoke())
+    root.bind("<KeyRelease-2>",lambda e:rainbowFlash.invoke())
+    root.bind("<KeyRelease-3>",lambda e:rgbPulse.invoke())
+    root.bind("<KeyRelease-4>",lambda e:rgbFlash.invoke())
+    root.bind("<KeyRelease-5>",lambda e:redPulse.invoke())
+    root.bind("<KeyRelease-6>",lambda e:redFlash.invoke())
+    root.bind("<KeyRelease-7>",lambda e:greenPulse.invoke())
+    root.bind("<KeyRelease-8>",lambda e:greenFlash.invoke())
+    root.bind("<KeyRelease-9>",lambda e:bluePulse.invoke())
+    root.bind("<KeyRelease-0>",lambda e:blueFlash.invoke())
 
     #TO DO Settings Auto Reconnect
     #root.after(20,connect)

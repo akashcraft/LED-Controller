@@ -1,19 +1,19 @@
 # LightCraft
 Software to control Bluetooth LED Strips like QHM-0A9E
 
-<img width=600px src="https://github.com/user-attachments/assets/7ebbe3ff-4129-43fd-b2b7-0fcd95be3e73">
+<img width=600px src="https://github.com/user-attachments/assets/72c854c2-6485-4da2-8bf7-1130b5a3c0c8">
 
 ## Features
 - Connect and Power Toggle
 - Single Colour Control
 - Hex Colour Control
+- Pulsing and Flashing Control
 - Keybind Shortcuts
 - Dark Mode
 
 ## Under Development
 Some of these features are available and ready to use in the CLI Version. Run the `main.py` file.
-- Pulsing with Timing Control (CLI)
-- Flashing with Timing Control (CLI)
+- Timing Control (CLI)
 - Music Beats Sync (CLI)
 - User Friendly GUI and Settings
 - Multi-Language Support (Planned)
@@ -45,7 +45,7 @@ LightCraft CLI
 This version will not be developed further. Use it for a light weight option if you just want to send custom commands to your LED Strips.
 
 LightCraft GUI
-If you plan to run the project locally, you will need to modify the `CTkColorPicker` package as the stock package is modified to add functionality to LightCraft. Find the file in the repository and overwrite with the stock file. Failure to do this will result in Runtime Errors.
+If you plan to run the project locally, you will need to modify the `CTkColorPicker` and `CTkRadioButton` package as the stock package is modified to add functionality to LightCraft. Find the files in the repository and overwrite with the stock file. Failure to do this will result in Runtime Errors.
 
 LightCraft stores its configuration data in the `Settings.txt` which must be located in the same project folder. If this is not possible, LightCraft will attempt to re-create the files during the pre-GUI checks. Resources folder contains all the GUI elements and this folder **must not** be deleted. LightCraft will not load the GUI in that case.
 
