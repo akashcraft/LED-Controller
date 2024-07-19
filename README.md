@@ -12,7 +12,7 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 - Dark Mode
 
 ## Under Development
-Some of these features are available and ready to use in the CLI Version. Run the `main.py` file.
+Some of these features are available and ready to use in the CLI Version. Run the `lightcraft_cli.py` file.
 - Timing Control (CLI)
 - Music Beats Sync (CLI)
 - User Friendly GUI and Settings
