@@ -1,5 +1,5 @@
 # LightCraft
-Software to control Bluetooth LED Strips like QHM-0A9E
+Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 
 <img width=600px src="https://github.com/user-attachments/assets/72c854c2-6485-4da2-8bf7-1130b5a3c0c8">
 
@@ -8,7 +8,7 @@ Software to control Bluetooth LED Strips like QHM-0A9E
 - Single Colour Control
 - Hex Colour Control
 - Pulsing and Flashing Control
-- Keybind Shortcuts
+- Keyboard Shortcuts
 - Dark Mode
 
 ## Under Development
@@ -41,10 +41,10 @@ git clone https://akashcraft/LED-Controller.git
 ```
 
 ## Important Notes
-LightCraft CLI
+### LightCraft CLI
 This version will not be developed further. Use it for a light weight option if you just want to send custom commands to your LED Strips.
 
-LightCraft GUI
+### LightCraft GUI
 If you plan to run the project locally, you will need to modify the `CTkColorPicker` and `CTkRadioButton` package as the stock package is modified to add functionality to LightCraft. Find the files in the repository and overwrite with the stock file. Failure to do this will result in Runtime Errors.
 
 LightCraft stores its configuration data in the `Settings.txt` which must be located in the same project folder. If this is not possible, LightCraft will attempt to re-create the files during the pre-GUI checks. Resources folder contains all the GUI elements and this folder **must not** be deleted. LightCraft will not load the GUI in that case.
