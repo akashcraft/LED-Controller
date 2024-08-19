@@ -1,4 +1,4 @@
-import asyncio, os, time
+import asyncio, os, time, ast
 from bleak import BleakClient
 
 bd_addr = "32:06:C2:00:0A:9E"
@@ -28,7 +28,7 @@ def extractCmd(line):
         return cmd, delay
 
 def getCmd():
-    file_path = os.path.join(os.pardir,"music.mp3")
+    file_path = os.path.join(os.pardir,"music.mp4")
     try:
         os.startfile(file_path)
         fobj = open(os.path.join(os.pardir,"music.txt"),"r")
@@ -94,6 +94,18 @@ validFlashCode = {
     'eyesore': 0x30
 }
 
+def isValidRepeat(dataList):
+    if dataList[0] in ['r','repeat'] and dataList[1].isnumeric():
+        return True
+    else:
+        return False
+    
+async def repeat(client, char_uuid, datalist, times):
+    for i in range(times):
+        for j in ast.literal_eval(datalist):
+            cmd, delay = extractCmd(j)
+            await sendCmd(client, char_uuid, cmd)
+            time.sleep(delay)
 
 def isValidHex(dataList):
     if len(dataList)==3:
@@ -136,9 +148,42 @@ def setInterval(dataList):
             return 0x00
     else:
         return 0x00
+    
+async def sendCmd(client, char_uuid, base, isManual = False):
+    global manual, stepmax, cmds
+    if (base=='on'):   
+        await client.write_gatt_char(char_uuid, bytearray([0xcc,0x23,0x33]))
+    elif (base=='off'):
+        await client.write_gatt_char(char_uuid, bytearray([0xcc,0x24,0x33]))
+    else:
+        if (isPlayerValid(base.split()) and isManual):
+            valid, stepmax, cmds = getCmd()
+            if valid:
+                manual = False
+        elif (isValidPulse(base.split())):
+            data_packet = bytearray([0xbb, validPulseCode[base.split()[1]], setInterval(base.split()), 0x44])
+            await client.write_gatt_char(char_uuid, data_packet)
+        elif (isValidFlash(base.split())):
+            data_packet = bytearray([0xbb, validFlashCode[base.split()[1]], setInterval(base.split()), 0x44])
+            await client.write_gatt_char(char_uuid, data_packet)
+        elif (isValidRepeat(base.split()) and isManual):
+            await repeat(client, char_uuid, base[base.find('['):], int(base.split()[1]))
+        else:
+            preventSend = False
+            r, g, b = 0, 0, 0
+            if (base in validColours.keys()):
+                r, g, b = map(int, validColours[base])
+            elif (isValidHex(base.split())):
+                r, g, b = map(int, base.split())
+            else:
+                print("Invalid Command. Try Again!")
+                preventSend = True
+            if (preventSend==False):
+                data_packet = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
+                await client.write_gatt_char(char_uuid, data_packet)
 
 async def send_data(address, char_uuid):
-    global manual,step
+    global manual,step,stepmax,cmds
     async with BleakClient(address) as client:
         while True:
             if manual:
@@ -149,42 +194,13 @@ async def send_data(address, char_uuid):
             else:
                 if (step!=stepmax):
                     base, delay = extractCmd(cmds[step]) # type: ignore
+                    step += 1
                     time.sleep(delay)
                 else:
                     step = 0
                     manual = True
                     continue
-            
-            if (base=='on'):   
-                await client.write_gatt_char(char_uuid, bytearray([0xcc,0x23,0x33]))
-            elif (base=='off'):
-                await client.write_gatt_char(char_uuid, bytearray([0xcc,0x24,0x33]))
-            else:
-                if (isPlayerValid(base.split())):
-                    valid, stepmax, cmds = getCmd()
-                    if valid:
-                        manual = False
-                    continue
-                if (isValidPulse(base.split())):
-                    data_packet = bytearray([0xbb, validPulseCode[base.split()[1]], setInterval(base.split()), 0x44])
-                    await client.write_gatt_char(char_uuid, data_packet)
-                elif (isValidFlash(base.split())):
-                    data_packet = bytearray([0xbb, validFlashCode[base.split()[1]], setInterval(base.split()), 0x44])
-                    await client.write_gatt_char(char_uuid, data_packet)
-                else:
-                    r, g, b = 0, 0, 0
-                    if (base in validColours.keys()):
-                        r, g, b = map(int, validColours[base])
-                    else:
-                        if (isValidHex(base.split())):
-                            r, g, b = map(int, base.split())
-                        else:
-                            print("Invalid Command. Try Again!")
-                            continue
-                    data_packet = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
-                    #RGB from second byte
-                    await client.write_gatt_char(char_uuid, data_packet)
-            if manual==False:
-                step=step+1
+
+            await sendCmd(client, char_uuid, base, True)
 
 asyncio.run(send_data(bd_addr, uuid))
