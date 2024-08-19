@@ -15,6 +15,9 @@ address = "32:06:C2:00:0A:9E"
 char_uuid = "FFD9"
 isConnected = False
 isOn = False
+interval = 5
+isFlashing = False
+isPulsing = True
 
 validColours = {
     'red': [255, 0, 0],
@@ -162,9 +165,23 @@ def main():
         colorpicker.slider.set(new_value)
         colorpicker.update_colors()
         sendHex(colorpicker.label.cget("text"))
+    
+    def setInterval(isUp):
+        curr_value = intervalSlider.get()
+        if isUp:
+            new_value = curr_value + 1
+            if new_value > 10:
+                new_value = 10
+        else:
+            new_value = curr_value - 1
+            if new_value < 0:
+                new_value = 0
+        intervalSlider.set(new_value)
+        updateInterval()
 
     @debounce(0.1)
     def sendHex(data):
+        intervalSlider.configure(progress_color=data)
         data = data[1:]
         data = bytearray([0x56, int(data[0:2], 16), int(data[2:4], 16), int(data[4:6], 16), 0x00, 0xf0, 0xaa])
         controller.run_coroutine(controller.sendCmd(data))
@@ -181,17 +198,33 @@ def main():
 
     @debounce(0.1)
     def sendPulse():
-        data = bytearray([0xbb,validPulseCode[pulseflash_var.get()],0x05,0x44])
+        global isPulsing, isFlashing
+        isPulsing = True
+        isFlashing = False
+        data = bytearray([0xbb,validPulseCode[pulseflash_var.get()],int(interval),0x44])
         controller.run_coroutine(controller.sendCmd(data))
 
     @debounce(0.1)
     def sendFlash():
-        data = bytearray([0xbb,validFlashCode[pulseflash_var.get()],0x05,0x44])
+        global isPulsing, isFlashing
+        isPulsing = False
+        isFlashing = True
+        data = bytearray([0xbb,validFlashCode[pulseflash_var.get()],int(interval),0x44])
         controller.run_coroutine(controller.sendCmd(data))
     
     def sgButton(frame,row,col,colour):
         r, g, b = map(int, validColours[colour])
         return CTkButton(frame,text="", fg_color="#{:02x}{:02x}{:02x}".format(r, g, b), hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourWB(r,g,b)).grid(row=row,column=col,padx=(10,0),pady=(10,0))
+
+    @debounce(0.1)
+    def updateInterval():
+        global interval
+    
+        interval = 10 - intervalSlider.get()
+        if isPulsing:
+            sendPulse()
+        if isFlashing:
+            sendFlash()
 
     def destroyer(relaunch=False):
         global root
@@ -264,7 +297,7 @@ def main():
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.3.0 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 1.4.0 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color="#333333", image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Control"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
@@ -281,8 +314,9 @@ def main():
     greenFlash = CTkRadioButton(mgframe, text="Green", command=sendFlash, variable= pulseflash_var, value='green_flash')
     blueFlash = CTkRadioButton(mgframe, text="Blue", command=sendFlash, variable= pulseflash_var, value='blue_flash')
     whiteFlash = CTkRadioButton(mgframe, text="White", command=sendFlash, variable= pulseflash_var, value='white_flash')
-    pulseHint = CTkButton(mgframe, text="Pulse", width=20, image=imgtk4, hover=False, fg_color="transparent")
-    flashHint = CTkButton(mgframe, text="Flash", width=20, image=imgtk5, hover=False, fg_color="transparent")
+    pulseHint = CTkButton(mgframe, text="Pulse", width=20, compound="right", image=imgtk4, hover=False, fg_color="transparent")
+    flashHint = CTkButton(mgframe, text="Flash", width=20, compound="right", image=imgtk5, hover=False, fg_color="transparent")
+    intervalSlider = CTkSlider(mgframe, from_=0, to=10, orientation="vertical", height=185, width=20, progress_color="white", border_width=0, command=lambda e: updateInterval())
 
     root.grid_columnconfigure(1,weight=1)
     root.grid_rowconfigure(2,weight=1)
@@ -320,21 +354,22 @@ def main():
     sgButton(sgframe, 3, 4, "white")
     sgButton(sgframe, 4, 4, "white")
     colorpicker.grid(row=0,column=1,pady=10,sticky='n')
-    mgframe.grid(row=0,column=2,padx=10,pady=10, sticky='n')
-    pulseHint.grid(row=0,column=0,pady=(5,0), sticky='w')
+    mgframe.grid(row=0,column=2,padx=(5,10),pady=10, sticky='n')
+    pulseHint.grid(row=0,column=0,pady=(5,0), padx=0, ipadx=0, sticky='w')
     flashHint.grid(row=0,column=1,pady=(5,0), sticky='w')
-    rainbowPulse.grid(row=1,column=0,pady=(8,0), padx=10, sticky='e')
-    rgbPulse.grid(row=2,column=0,pady=(10,0), padx=10, sticky='e')
-    redPulse.grid(row=3,column=0,pady=(10,0), padx=10, sticky='e')
-    greenPulse.grid(row=4,column=0,pady=(10,0), padx=10, sticky='e')
-    bluePulse.grid(row=5,column=0,pady=(10,0), padx=10, sticky='e')
-    whitePulse.grid(row=6,column=0,pady=(10,0), padx=10, sticky='e')
-    rainbowFlash.grid(row=1,column=1,pady=(10,0), padx=10, sticky='e')
-    rgbFlash.grid(row=2,column=1,pady=(10,0), padx=10, sticky='e')
-    redFlash.grid(row=3,column=1,pady=(10,0), padx=10, sticky='e')
-    greenFlash.grid(row=4,column=1,pady=(10,0), padx=10, sticky='e')
-    blueFlash.grid(row=5,column=1,pady=(10,0), padx=10, sticky='e')
-    whiteFlash.grid(row=6,column=1,pady=(10,0), padx=10, sticky='e')
+    rainbowPulse.grid(row=1,column=0,pady=(8,0), padx=5, sticky='e')
+    rgbPulse.grid(row=2,column=0,pady=(10,0), padx=5, sticky='e')
+    redPulse.grid(row=3,column=0,pady=(10,0), padx=5, sticky='e')
+    greenPulse.grid(row=4,column=0,pady=(10,0), padx=5, sticky='e')
+    bluePulse.grid(row=5,column=0,pady=(10,0), padx=5, sticky='e')
+    whitePulse.grid(row=6,column=0,pady=(10,0), padx=5, sticky='e')
+    rainbowFlash.grid(row=1,column=1,pady=(10,0), padx=5, sticky='e')
+    rgbFlash.grid(row=2,column=1,pady=(10,0), padx=5, sticky='e')
+    redFlash.grid(row=3,column=1,pady=(10,0), padx=5, sticky='e')
+    greenFlash.grid(row=4,column=1,pady=(10,0), padx=5, sticky='e')
+    blueFlash.grid(row=5,column=1,pady=(10,0), padx=5, sticky='e')
+    whiteFlash.grid(row=6,column=1,pady=(10,0), padx=5, sticky='e')
+    intervalSlider.grid(row=1,column=2,rowspan=6, padx=0, sticky='se')
 
     #Key Binds
     root.bind("<KeyRelease-r>",lambda e:sendColourWB(255,0,0))
@@ -344,8 +379,10 @@ def main():
     root.bind("<KeyRelease-p>",lambda e:sendColourWB(255,0,40))
     root.bind("<KeyRelease-c>",lambda e:connect())
     root.bind("<space>",lambda e:togglePower())
-    root.bind("<Up>",lambda e:setBrightness(True))
-    root.bind("<Down>",lambda e:setBrightness(False))
+    root.bind("<Right>",lambda e:setBrightness(True))
+    root.bind("<Left>",lambda e:setBrightness(False))
+    root.bind("<Up>",lambda e:setInterval(True))
+    root.bind("<Down>",lambda e:setInterval(False))
     root.bind("<KeyRelease-1>",lambda e:rainbowPulse.invoke())
     root.bind("<KeyRelease-2>",lambda e:rainbowFlash.invoke())
     root.bind("<KeyRelease-3>",lambda e:rgbPulse.invoke())

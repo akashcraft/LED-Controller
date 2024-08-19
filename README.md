@@ -1,19 +1,20 @@
 # LightCraft
 Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 
-<img width=600px src="https://github.com/user-attachments/assets/72c854c2-6485-4da2-8bf7-1130b5a3c0c8">
+<img width=600px src="https://github.com/user-attachments/assets/3ff64e54-f59a-4c67-97e6-9ef96604faf7">
 
 ## Features
 - Connect and Power Toggle
 - Single Colour Control
 - Hex Colour Control
 - Pulsing and Flashing Control
+- Timing Control
 - Keyboard Shortcuts
 - Dark Mode
 
 ## Under Development
 Some of these features are available and ready to use in the CLI Version. Run the `lightcraft_cli.py` file.
-- Timing Control (CLI)
+- Alert SOS
 - Music Beats Sync (CLI)
 - User Friendly GUI and Settings
 - Multi-Language Support (Planned)
