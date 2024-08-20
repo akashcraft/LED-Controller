@@ -18,6 +18,7 @@ isOn = False
 interval = 5
 isFlashing = False
 isPulsing = True
+linkColour = "white"
 
 validColours = {
     'red': [255, 0, 0],
@@ -69,6 +70,13 @@ validPulseCode = {
     'red_pulse': 0x26,
     'rgb_pulse': 0x61,
     'all_pulse': 0x25
+}
+
+colourToRGB = {
+    'red': (255,0,0),
+    'green': (0,255,0),
+    'blue': (0,0,255),
+    'white': (255,255,255)
 }
 
 class BluetoothController:
@@ -152,6 +160,23 @@ def main():
             data = bytearray([0xcc,0x24,0x33])
         controller.run_coroutine(controller.sendCmd(data))
 
+    def swapPulseFlash():
+        global isPulsing, isFlashing
+        if isPulsing:
+            isPulsing = False
+            isFlashing = True
+            pulseflash_var.set(pulseflash_var.get().replace("pulse","flash"))
+        else:
+            isPulsing = True
+            isFlashing = False
+            pulseflash_var.set(pulseflash_var.get().replace("flash","pulse"))
+    def sliderColourFun(sliderColour):
+        if sliderColour in ["all","rgb"]:
+            sliderColour = "white"
+        intervalSlider.configure(progress_color=sliderColour)
+        r,g,b = colourToRGB[sliderColour]
+        colorpicker.update_colors(r,g,b)
+
     def setBrightness(isUp):
         curr_value = colorpicker.slider.get()
         if isUp:
@@ -193,23 +218,49 @@ def main():
         controller.run_coroutine(controller.sendCmd(data))
     
     def sendColourWB(r,g,b):
+        global linkColour
+        if (r==255 and g==255 and b==255):
+            linkColour = "white"
+        elif (r==255 and g==0 and b==0):
+            linkColour = "red"
+        elif (r==0 and g==255 and b==0):    
+            linkColour = "green"
+        elif (r==0 and g==0 and b==255):
+            linkColour = "blue"
+        else:
+            linkColour = "unset"
+        if linkColour!="unset":
+            if isPulsing:
+                pulseflash_var.set(linkColour+"_pulse")
+            if isFlashing:
+                pulseflash_var.set(linkColour+"_flash")
         colorpicker.update_colors(r,g,b)
         sendHex(colorpicker.label.cget("text"))
 
     @debounce(0.1)
-    def sendPulse():
-        global isPulsing, isFlashing
+    def sendPulse(isSet=False):
+        global isPulsing, isFlashing, linkColour
         isPulsing = True
         isFlashing = False
-        data = bytearray([0xbb,validPulseCode[pulseflash_var.get()],int(interval),0x44])
+        if isSet==False:
+            data = bytearray([0xbb,validPulseCode[pulseflash_var.get()],int(interval),0x44])
+            linkColour = "unset"
+            sliderColourFun(pulseflash_var.get().split("_")[0]) 
+        else:
+            data = bytearray([0xbb,validPulseCode[linkColour+"_pulse"],int(interval),0x44])
         controller.run_coroutine(controller.sendCmd(data))
 
     @debounce(0.1)
-    def sendFlash():
-        global isPulsing, isFlashing
+    def sendFlash(isSet=False):
+        global isPulsing, isFlashing, linkColour
         isPulsing = False
         isFlashing = True
-        data = bytearray([0xbb,validFlashCode[pulseflash_var.get()],int(interval),0x44])
+        if isSet==False:
+            data = bytearray([0xbb,validFlashCode[pulseflash_var.get()],int(interval),0x44])
+            linkColour = "unset"
+            sliderColourFun(pulseflash_var.get().split("_")[0])
+        else:
+            data = bytearray([0xbb,validFlashCode[linkColour+"_flash"],int(interval),0x44])
         controller.run_coroutine(controller.sendCmd(data))
     
     def sgButton(frame,row,col,colour):
@@ -219,12 +270,11 @@ def main():
     @debounce(0.1)
     def updateInterval():
         global interval
-    
         interval = 10 - intervalSlider.get()
         if isPulsing:
-            sendPulse()
+            sendPulse(linkColour!="unset")
         if isFlashing:
-            sendFlash()
+            sendFlash(linkColour!="unset")
 
     def destroyer(relaunch=False):
         global root
@@ -239,6 +289,7 @@ def main():
                 root = CTk()
                 main()
             else:
+                disconnect()
                 root.destroy()
         controller.loop.call_soon_threadsafe(controller.loop.stop)
         loop_thread.join()
@@ -393,6 +444,7 @@ def main():
     root.bind("<KeyRelease-8>",lambda e:greenFlash.invoke())
     root.bind("<KeyRelease-9>",lambda e:bluePulse.invoke())
     root.bind("<KeyRelease-0>",lambda e:blueFlash.invoke())
+    root.bind("<Tab>",lambda e:swapPulseFlash())
 
     #TO DO Settings Auto Reconnect
     #root.after(20,connect)
