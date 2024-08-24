@@ -276,6 +276,10 @@ def main():
         if isFlashing:
             sendFlash(linkColour!="unset")
 
+    #Settings Functions
+    def toggleTheme():
+        print("Dummy Settings Function")
+
     def destroyer(relaunch=False):
         global root
         #TO DO Settings Ask for Confirmation
@@ -348,7 +352,7 @@ def main():
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.4.0 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 1.5.0 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color="#333333", image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Control"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
@@ -421,6 +425,25 @@ def main():
     blueFlash.grid(row=5,column=1,pady=(10,0), padx=5, sticky='e')
     whiteFlash.grid(row=6,column=1,pady=(10,0), padx=5, sticky='e')
     intervalSlider.grid(row=1,column=2,rowspan=6, padx=0, sticky='se')
+
+    #Settings
+    mainframe.tab("Settings").grid_columnconfigure(1,weight=1)
+    CTkLabel(mainframe.tab("Settings"), text="LED MAC Address").grid(row=0,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="Characteristic UUID").grid(row=1,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="Auto Connect").grid(row=2,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="Enable Keyboard Shortcuts").grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="Remember Loaded Files").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="Edit Operation Codes").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="Reset Settings").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="User Manual").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
+    macInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="32:06:C2:00:0A:9E", height=5, corner_radius=5).grid(row=0,column=2,padx=5,pady=(4,0), sticky='e')
+    uuidInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="FFD9", height=5, corner_radius=5).grid(row=1,column=2,padx=5,pady=(4,0), sticky='e')
+    autoCSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=2,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    keyBindSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=3,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    loadedSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    editOpButton = CTkButton(mainframe.tab("Settings"), text="Edit", width=60, height=15, corner_radius=5, command=toggleTheme).grid(row=5,column=2,padx=8,pady=(4,0), sticky='e')
+    resetButton = CTkButton(mainframe.tab("Settings"), text="Reset", width=60, height=15, corner_radius=5, command=toggleTheme).grid(row=6,column=2,padx=8,pady=(4,0), sticky='e')
+    useManButton = CTkButton(mainframe.tab("Settings"), text="Open", width=60, height=15, corner_radius=5, command=toggleTheme).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
 
     #Key Binds
     root.bind("<KeyRelease-r>",lambda e:sendColourWB(255,0,0))
