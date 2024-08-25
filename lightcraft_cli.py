@@ -5,6 +5,7 @@ bd_addr = "32:06:C2:00:0A:9E"
 uuid = "FFD9"
 manual = True
 step = 0
+proceed = True
 
 def isPlayerValid(dataList):
     if ((len(dataList)==1) and dataList[0] in ['s','start']):
@@ -101,11 +102,25 @@ def isValidRepeat(dataList):
         return False
     
 async def repeat(client, char_uuid, datalist, times):
+    global proceed
     for i in range(times):
         for j in ast.literal_eval(datalist):
             cmd, delay = extractCmd(j)
-            await sendCmd(client, char_uuid, cmd)
-            time.sleep(delay)
+            if proceed==True:
+                await sendCmd(client, char_uuid, cmd)
+                time.sleep(delay)
+            else:
+                break
+        if proceed==False:
+            break
+
+def disableRepeat():
+    global proceed
+    proceed = False
+
+def enableRepeat():
+    global proceed
+    proceed = True
 
 def isValidHex(dataList):
     if len(dataList)==3:
@@ -203,4 +218,5 @@ async def send_data(address, char_uuid):
 
             await sendCmd(client, char_uuid, base, True)
 
-asyncio.run(send_data(bd_addr, uuid))
+if __name__ == "__main__":
+    asyncio.run(send_data(bd_addr, uuid))

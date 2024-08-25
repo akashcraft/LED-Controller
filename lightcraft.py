@@ -1,6 +1,7 @@
 #LightCraft Source Code
 #Made by Akash Samanta
 
+from unittest import case
 import asyncio, threading, os, time, webbrowser
 from bleak import BleakClient
 from PIL import Image
@@ -9,6 +10,8 @@ import tkinter as tk
 from tkinter import messagebox
 from CTkColorPicker import * # type: ignore
 from functools import wraps
+import pygame
+from lightcraft_cli import repeat, enableRepeat, disableRepeat
 
 root = CTk()
 address = "32:06:C2:00:0A:9E"
@@ -109,6 +112,7 @@ class BluetoothController:
         return asyncio.run_coroutine_threadsafe(coro, self.loop)
 
 def main():
+    pygame.mixer.init()
     def debounce(wait):
         def decorator(fn):
             last_call = [0]
@@ -122,11 +126,18 @@ def main():
             return debounced
         return decorator
     
+    #Connection Functions
     def connect():
         global isConnected
         if isConnected:
             isConnected = False
             connect_button.configure(text="Connect", state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            radio_button_1.configure(state="disabled")
+            radio_button_2.configure(state="disabled")
+            radio_button_3.configure(state="disabled")
+            radio_button_4.configure(state="disabled")
+            alertButton.configure(state="disabled")
+            alertText.configure(text="Please connect your LED Strips first")
             disconnect()
         else:
             future = controller.run_coroutine(controller.connect())
@@ -139,6 +150,12 @@ def main():
             if controller.connected:
                 isConnected = True
                 connect_button.configure(text="Connected", fg_color="green", hover_color="#00AA00", state="normal")
+                radio_button_1.configure(state="normal")
+                radio_button_2.configure(state="normal")
+                radio_button_3.configure(state="normal")
+                radio_button_4.configure(state="normal")
+                alertButton.configure(state="normal")
+                alertText.configure(text="This feature can mimic real life alert and SOS sounds. Use at your own risk.")
             else:
                 connect_button.configure(text="Reconnect", fg_color="red", hover_color="#AA0000", state="normal")
                 tk.messagebox.showerror("Connection Failure", "LightCraft failed to connect with your LED Strips. Please make sure that your Bluetooth is turned on and that your LED Strips are not bonded with another device. Verify the MAC Address in Settings.") # type: ignore
@@ -160,6 +177,7 @@ def main():
             data = bytearray([0xcc,0x24,0x33])
         controller.run_coroutine(controller.sendCmd(data))
 
+    #Commands
     def swapPulseFlash():
         global isPulsing, isFlashing
         if isPulsing:
@@ -170,6 +188,7 @@ def main():
             isPulsing = True
             isFlashing = False
             pulseflash_var.set(pulseflash_var.get().replace("flash","pulse"))
+
     def sliderColourFun(sliderColour):
         if sliderColour in ["all","rgb"]:
             sliderColour = "white"
@@ -280,6 +299,126 @@ def main():
     def toggleTheme():
         print("Dummy Settings Function")
 
+    #Alert Functions
+    def playAlert():
+        global interval
+        enableRepeat()
+        alert = alert_var.get()
+        pulseflash_var.set("red_pulse")
+        match alert:
+            case 0:
+                pygame.mixer.music.load(r".\Resources\italyAlert.mp3")
+                loop_thread1 = threading.Thread(target=lambda: asyncio.run(repeat(controller.client, char_uuid, '["0.3 red","0.3 pink"]', 100)))
+                loop_thread1.start()
+            case 1:
+                pygame.mixer.music.load(r".\Resources\japanAlert.mp3")
+                interval = 0
+                sendPulse()
+            case 2:
+                pygame.mixer.music.load(r".\Resources\franceAlert.mp3")
+                interval = 1
+                sendPulse()
+            case 3:
+                pygame.mixer.music.load(r".\Resources\usaAlert.mp3")
+                interval = 6
+                sendPulse()
+        intervalSlider.set(10-interval)
+        pygame.mixer.music.play()
+        alertButton.configure(text="Stop Alert", fg_color="#AA0000", hover_color="#880000", command=stopAlert)
+
+    def stopAlert():
+        pygame.mixer.music.stop()
+        disableRepeat()
+        sendColourWB(255,0,0)
+        alertButton.configure(text="Play Alert",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"), command=playAlert)
+
+    #Page Functions
+    def unbindAll():
+        root.unbind("<KeyRelease-r>")
+        root.unbind("<KeyRelease-g>")
+        root.unbind("<KeyRelease-b>")
+        root.unbind("<KeyRelease-w>")
+        root.unbind("<KeyRelease-p>")
+        root.unbind("<space>")
+        root.unbind("<Right>")
+        root.unbind("<Left>")
+        root.unbind("<Up>")
+        root.unbind("<Down>")
+        root.unbind("<KeyRelease-1>")
+        root.unbind("<KeyRelease-2>")
+        root.unbind("<KeyRelease-3>")
+        root.unbind("<KeyRelease-4>")
+        root.unbind("<KeyRelease-5>")
+        root.unbind("<KeyRelease-6>")
+        root.unbind("<KeyRelease-7>")
+        root.unbind("<KeyRelease-8>")
+        root.unbind("<KeyRelease-9>")
+        root.unbind("<KeyRelease-0>")
+        root.unbind("<KeyRelease-`>")
+    
+    def bindBasic():
+        unbindAll()
+        root.bind("<KeyRelease-r>",lambda e:sendColourWB(255,0,0))
+        root.bind("<KeyRelease-g>",lambda e:sendColourWB(0,255,0))
+        root.bind("<KeyRelease-b>",lambda e:sendColourWB(0,0,255))
+        root.bind("<KeyRelease-w>",lambda e:sendColourWB(255,255,255))
+        root.bind("<KeyRelease-p>",lambda e:sendColourWB(255,0,40))
+        root.bind("<KeyRelease-c>",lambda e:connect())
+        root.bind("<KeyRelease-`>",lambda e:swapPulseFlash())
+        root.bind("<space>",lambda e:togglePower())
+        root.bind("<Right>",lambda e:setBrightness(True))
+        root.bind("<Left>",lambda e:setBrightness(False))
+        root.bind("<Up>",lambda e:setInterval(True))
+        root.bind("<Down>",lambda e:setInterval(False))
+        root.bind("<KeyRelease-1>",lambda e:rainbowPulse.invoke())
+        root.bind("<KeyRelease-2>",lambda e:rainbowFlash.invoke())
+        root.bind("<KeyRelease-3>",lambda e:rgbPulse.invoke())
+        root.bind("<KeyRelease-4>",lambda e:rgbFlash.invoke())
+        root.bind("<KeyRelease-5>",lambda e:redPulse.invoke())
+        root.bind("<KeyRelease-6>",lambda e:redFlash.invoke())
+        root.bind("<KeyRelease-7>",lambda e:greenPulse.invoke())
+        root.bind("<KeyRelease-8>",lambda e:greenFlash.invoke())
+        root.bind("<KeyRelease-9>",lambda e:bluePulse.invoke())
+        root.bind("<KeyRelease-0>",lambda e:blueFlash.invoke())
+        root.bind("<Tab>",lambda e:nextTab())
+
+    def bindAlert():
+        unbindAll()
+        root.bind("<KeyRelease-c>",lambda e:connect())
+        root.bind("<KeyRelease-1>",lambda e:radio_button_1.invoke())
+        root.bind("<KeyRelease-2>",lambda e:radio_button_2.invoke())
+        root.bind("<KeyRelease-3>",lambda e:radio_button_3.invoke())
+        root.bind("<KeyRelease-4>",lambda e:radio_button_4.invoke())
+        root.bind("<Tab>",lambda e:nextTab())
+        root.bind("<space>",lambda e: alertButton.invoke())
+
+    def nextTab():
+        tab = mainframe.get()
+        if tab=="Basic":
+            mainframe.set("Alert")
+        elif tab=="Alert":
+            mainframe.set("Music")
+        elif tab=="Music":
+            mainframe.set("Settings")
+        else:
+            mainframe.set("Basic")
+        updateTab()
+
+    def updateTab():
+        tab = mainframe.get()
+        macInput.configure(state="disabled")
+        uuidInput.configure(state="disabled")
+        if tab=="Basic":
+            bindBasic()
+        elif tab=="Alert":
+            bindAlert()
+        elif tab=="Music":
+            pass
+        else:
+            macInput.configure(state="normal")
+            uuidInput.configure(state="normal")
+            unbindAll()
+
     def destroyer(relaunch=False):
         global root
         #TO DO Settings Ask for Confirmation
@@ -318,12 +457,14 @@ def main():
     root.resizable(False,False)
 
     #Frames
-    mainframe=CTkTabview(root)
-    mainframe.add("Control")
+    mainframe=CTkTabview(root, command=updateTab)
+    mainframe.add("Basic")
+    mainframe.add("Alert")
     mainframe.add("Music")
     mainframe.add("Settings")
-    sgframe=CTkFrame(mainframe.tab("Control"), fg_color="transparent")
-    mgframe=CTkFrame(mainframe.tab("Control"), fg_color="transparent")
+    sgframe=CTkFrame(mainframe.tab("Basic"), fg_color="transparent")
+    mgframe=CTkFrame(mainframe.tab("Basic"), fg_color="transparent")
+    alertframe=CTkFrame(mainframe.tab("Alert"))
 
     #Button Scaling
     bsize=16
@@ -340,6 +481,10 @@ def main():
         image3 = Image.open(r".\Resources\offButton.png")
         image4 = Image.open(r".\Resources\pulseHint.png")
         image5 = Image.open(r".\Resources\flashHint.png")
+        image6 = Image.open(r".\Resources\italy.png")
+        image7 = Image.open(r".\Resources\japan.png")
+        image8 = Image.open(r".\Resources\france.png")
+        image9 = Image.open(r".\Resources\usa.png")
     except:
         tk.messagebox.showerror("Missing Resources","LightCraft could not find critical resources. The Resources folder may have been corrupted or deleted. Please re-install LightCraft from official sources.") # type: ignore #Missing Resources
         quit()
@@ -348,14 +493,18 @@ def main():
     imgtk3 = CTkImage(light_image=image3,size=(25,25))
     imgtk4 = CTkImage(light_image=image4,size=(25,25))
     imgtk5 = CTkImage(light_image=image5,size=(25,25))
+    imgtk6 = CTkImage(light_image=image6,size=(160,90))
+    imgtk7 = CTkImage(light_image=image7,size=(160,90))
+    imgtk8 = CTkImage(light_image=image8,size=(160,90))
+    imgtk9 = CTkImage(light_image=image9,size=(160,90))
 
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.5.0 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 1.6.0 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color="#333333", image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
-    colorpicker = CTkColorPicker(mainframe.tab("Control"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
+    colorpicker = CTkColorPicker(mainframe.tab("Basic"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
     pulseflash_var = tk.StringVar(value='all_pulse')
     rainbowPulse = CTkRadioButton(mgframe, text="Rainbow", command=sendPulse, variable= pulseflash_var, value='all_pulse')
     rgbPulse = CTkRadioButton(mgframe, text="RGB", command=sendPulse, variable= pulseflash_var, value='rgb_pulse')
@@ -381,7 +530,7 @@ def main():
     connect_button.grid(row=0,column=2,rowspan=2,padx=0, sticky='e')
     power_button.grid(row=0,column=3,rowspan=2,padx=10, sticky='e')
     mainframe.grid(row=2,column=0,columnspan=4,padx=10, pady=(0,10), sticky='nsew')
-    mainframe.tab("Control").grid_columnconfigure(1,weight=1)
+    mainframe.tab("Basic").grid_columnconfigure(1,weight=1)
     sgframe.grid(row=0,column=0,padx=10,pady=10, sticky='n')
     sgButton(sgframe, 0, 0, "red")
     sgButton(sgframe, 0, 1, "green")
@@ -436,8 +585,10 @@ def main():
     CTkLabel(mainframe.tab("Settings"), text="Edit Operation Codes").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="Reset Settings").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="User Manual").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
-    macInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="32:06:C2:00:0A:9E", height=5, corner_radius=5).grid(row=0,column=2,padx=5,pady=(4,0), sticky='e')
-    uuidInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="FFD9", height=5, corner_radius=5).grid(row=1,column=2,padx=5,pady=(4,0), sticky='e')
+    macInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="32:06:C2:00:0A:9E", height=5, corner_radius=5)
+    macInput.grid(row=0,column=2,padx=5,pady=(4,0), sticky='e')
+    uuidInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="FFD9", height=5, corner_radius=5)
+    uuidInput.grid(row=1,column=2,padx=5,pady=(4,0), sticky='e')
     autoCSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=2,column=2,padx=(5,0),pady=(4,0), sticky='e')
     keyBindSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=3,column=2,padx=(5,0),pady=(4,0), sticky='e')
     loadedSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
@@ -445,32 +596,30 @@ def main():
     resetButton = CTkButton(mainframe.tab("Settings"), text="Reset", width=60, height=15, corner_radius=5, command=toggleTheme).grid(row=6,column=2,padx=8,pady=(4,0), sticky='e')
     useManButton = CTkButton(mainframe.tab("Settings"), text="Open", width=60, height=15, corner_radius=5, command=toggleTheme).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
 
-    #Key Binds
-    root.bind("<KeyRelease-r>",lambda e:sendColourWB(255,0,0))
-    root.bind("<KeyRelease-g>",lambda e:sendColourWB(0,255,0))
-    root.bind("<KeyRelease-b>",lambda e:sendColourWB(0,0,255))
-    root.bind("<KeyRelease-w>",lambda e:sendColourWB(255,255,255))
-    root.bind("<KeyRelease-p>",lambda e:sendColourWB(255,0,40))
-    root.bind("<KeyRelease-c>",lambda e:connect())
-    root.bind("<space>",lambda e:togglePower())
-    root.bind("<Right>",lambda e:setBrightness(True))
-    root.bind("<Left>",lambda e:setBrightness(False))
-    root.bind("<Up>",lambda e:setInterval(True))
-    root.bind("<Down>",lambda e:setInterval(False))
-    root.bind("<KeyRelease-1>",lambda e:rainbowPulse.invoke())
-    root.bind("<KeyRelease-2>",lambda e:rainbowFlash.invoke())
-    root.bind("<KeyRelease-3>",lambda e:rgbPulse.invoke())
-    root.bind("<KeyRelease-4>",lambda e:rgbFlash.invoke())
-    root.bind("<KeyRelease-5>",lambda e:redPulse.invoke())
-    root.bind("<KeyRelease-6>",lambda e:redFlash.invoke())
-    root.bind("<KeyRelease-7>",lambda e:greenPulse.invoke())
-    root.bind("<KeyRelease-8>",lambda e:greenFlash.invoke())
-    root.bind("<KeyRelease-9>",lambda e:bluePulse.invoke())
-    root.bind("<KeyRelease-0>",lambda e:blueFlash.invoke())
-    root.bind("<Tab>",lambda e:swapPulseFlash())
+    #Alert
+    mainframe.tab("Alert").grid_columnconfigure(0,weight=1)
+    CTkLabel(alertframe,text='',image=imgtk6).grid(row=0,column=0,padx=(10,0),pady=(10,0), sticky='nw')
+    CTkLabel(alertframe,text='',image=imgtk7).grid(row=0,column=1,padx=(10,0),pady=(10,0), sticky='nw')
+    CTkLabel(alertframe,text='',image=imgtk8).grid(row=0,column=2,padx=(10,0),pady=(10,0), sticky='nw')
+    CTkLabel(alertframe,text='',image=imgtk9).grid(row=0,column=3,padx=(10,0),pady=(10,0), sticky='nw')
+    alertText = CTkLabel(mainframe.tab("Alert"), text="Please connect your LED Strips first", font=CTkFont(size=12), text_color=("red","yellow"))
+    alertText.grid(row=0,column=0,padx=10,pady=(4,0), sticky='nsew')
+    alert_var = tk.IntVar(value=0)
+    radio_button_1 = CTkRadioButton(alertframe, text="Sapienza, Italy", variable=alert_var, value=0, state="disabled", command=stopAlert)
+    radio_button_1.grid(row=1,column=0,padx=10,pady=10, sticky='w')
+    radio_button_2 = CTkRadioButton(alertframe, text="Hokkaido, Japan", variable=alert_var, value=1, state="disabled", command=stopAlert)
+    radio_button_2.grid(row=1,column=1,padx=10,pady=10, sticky='w')
+    radio_button_3 = CTkRadioButton(alertframe, text="Paris, France", variable=alert_var, value=2, state="disabled", command=stopAlert)
+    radio_button_3.grid(row=1,column=2,padx=10,pady=10, sticky='w')
+    radio_button_4 = CTkRadioButton(alertframe, text="Colorado, US", variable=alert_var, value=3, state="disabled")
+    radio_button_4.grid(row=1,column=3,padx=10,pady=10, sticky='w')
+    alertframe.grid(row=1,column=0,padx=10,pady=5, sticky='n')
+    alertButton = CTkButton(mainframe.tab("Alert"), text="Play Alert", font=CTkFont(size=bsize), width=bwidth, height=bheight, corner_radius=5, command=playAlert, state="disabled")
+    alertButton.grid(row=2,column=0,padx=0,pady=(10,0))
 
     #TO DO Settings Auto Reconnect
     #root.after(20,connect)
+    bindBasic()
     root.mainloop()
 
 if __name__ == "__main__":
