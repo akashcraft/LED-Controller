@@ -2,7 +2,7 @@
 #Made by Akash Samanta
 
 from unittest import case
-import asyncio, threading, os, time, webbrowser, re, subprocess
+import asyncio, threading, os, time, webbrowser, re, subprocess, keyboard
 from bleak import BleakClient
 from PIL import Image
 from customtkinter import * # type: ignore
@@ -263,10 +263,26 @@ def main():
         controller.run_coroutine(controller.sendCmd(data))
 
     @debounce(0.1)
-    def sendColour(r,g,b):
-        colorpicker.update_colors(r,g,b)
-        data = bytearray([0x56, r, g, b, 0x00, 0xf0, 0xaa])
-        controller.run_coroutine(controller.sendCmd(data))
+    def sendColourCB(button,index):
+        global settings
+        if keyboard.is_pressed("shift"):
+            button.configure(fg_color="#FFFFFF")
+            colorpicker.slider.configure(progress_color="#FFFFFF")
+            colorpicker.label.configure(text="#FFFFFF",fg_color="#FFFFFF")
+            sendHex("#FFFFFF")
+            settings[index] = "#FFFFFF\n"
+            writesettings()
+        else:
+            if colorpicker.dragging == True:
+                colorpicker.dragging = False
+                button.configure(fg_color=colorpicker.label.cget("text"))
+                sendHex(colorpicker.label.cget("text"))
+                settings[index] = colorpicker.label.cget("text") + "\n"
+                writesettings()
+            else:
+                colorpicker.slider.configure(progress_color=settings[index][:-1])
+                colorpicker.label.configure(text=settings[index][:-1],fg_color=settings[index][:-1])
+                sendHex(settings[index][:-1])
     
     def sendColourWB(r,g,b):
         global linkColour
@@ -313,10 +329,6 @@ def main():
         else:
             data = bytearray([0xbb,validFlashCode[linkColour+"_flash"],int(interval),0x44])
         controller.run_coroutine(controller.sendCmd(data))
-    
-    def sgButton(frame,row,col,colour):
-        r, g, b = map(int, validColours[colour])
-        return CTkButton(frame,text="", fg_color="#{:02x}{:02x}{:02x}".format(r, g, b), hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourWB(r,g,b)).grid(row=row,column=col,padx=(10,0),pady=(10,0))
 
     @debounce(0.1)
     def updateInterval():
@@ -326,6 +338,29 @@ def main():
             sendPulse(linkColour!="unset")
         if isFlashing:
             sendFlash(linkColour!="unset")
+    
+    def sgButton(frame,row,col,colour):
+        global customColour1, customColour2, customColour3, customColour4, customColour5
+        r, g, b = map(int, validColours[colour])
+        if col == 4:
+            match row:
+                case 0:
+                    customColour1 = CTkButton(frame,text="", fg_color=settings[7][:-1], hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourCB(customColour1,7))
+                    customColour1.grid(row=row,column=col,padx=(10,0),pady=(10,0))
+                case 1:
+                    customColour2 = CTkButton(frame,text="", fg_color=settings[8][:-1], hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourCB(customColour2,8))
+                    customColour2.grid(row=row,column=col,padx=(10,0),pady=(10,0))
+                case 2:
+                    customColour3 = CTkButton(frame,text="", fg_color=settings[9][:-1], hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourCB(customColour3,9))
+                    customColour3.grid(row=row,column=col,padx=(10,0),pady=(10,0))
+                case 3:
+                    customColour4 = CTkButton(frame,text="", fg_color=settings[10][:-1], hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourCB(customColour4,10))
+                    customColour4.grid(row=row,column=col,padx=(10,0),pady=(10,0))
+                case 4:
+                    customColour5 = CTkButton(frame,text="", fg_color=settings[11][:-1], hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourCB(customColour5,11))
+                    customColour5.grid(row=row,column=col,padx=(10,0),pady=(10,0))
+        else:
+            CTkButton(frame,text="", fg_color="#{:02x}{:02x}{:02x}".format(r, g, b), hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourWB(r,g,b)).grid(row=row,column=col,padx=(10,0),pady=(10,0))
 
     #Settings Functions
     def toggleTheme():
@@ -543,7 +578,7 @@ def main():
         except PermissionError:
             messagebox.showerror("Administrator Privileges Needed","Because of the nature of this LightCraft install, you will need to launch as administrator. To prevent this behaviour, please install LightCraft again on a user directory.")
             quit()
-        f.write("LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n32:06:C2:00:0A:9E\nFFD9\n0\n1\n1\n")
+        f.write("LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n32:06:C2:00:0A:9E\nFFD9\n0\n1\n1\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n")
         f.close()
 
     #Quit or Relaunch Application
@@ -568,13 +603,18 @@ def main():
 
     #Normal Reset from Application
     def resetsettings():
-        ans=messagebox.askyesno("Reset Settings","You will also lose any custom operation code configurations. Are you sure you want to reset all settings?")
+        ans=messagebox.askyesno("Clear Application Data","You will also lose any custom operation code configurations. Are you sure you want to clear application data?")
         if ans:
             autoCSwitch.deselect()
             keyBindSwitch.select()
             loadedSwitch.select()
             macInputVar.set("32:06:C2:00:0A:9E")
             uuidInputVar.set("FFD9")
+            customColour1.configure(fg_color="#FFFFFF")
+            customColour2.configure(fg_color="#FFFFFF")
+            customColour3.configure(fg_color="#FFFFFF")
+            customColour4.configure(fg_color="#FFFFFF")
+            customColour5.configure(fg_color="#FFFFFF")
             macInputSave()
             uuidInputSave()
             updateTab()
@@ -593,13 +633,17 @@ def main():
         f=open("Settings.txt","a+")
         f.seek(0)
         settings=f.readlines()
-        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1']]
+        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1'],['Hex'],['Hex'],['Hex'],['Hex'],['Hex']]
         #print(len(settings),len(check)) #For Debug Only
         #print(settings) #For Debug Only
         for i in range(len(check)):
             try:
                 if check[i]!=[]:
-                    if settings[i][:-1] not in check[i]:
+                    if check[i]==['Hex']:
+                        #print(settings[i],check[i]) #For Debug Only
+                        if settings[i][:-1][0]!="#" or len(settings[i][:-1])!=7:
+                            resetsettings2()
+                    elif settings[i][:-1] not in check[i]:
                         #print(settings[i][:-1],"and",check[i]) #For Debug Only
                         resetsettings2()
             except:
@@ -675,7 +719,7 @@ def main():
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.6.2 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 1.6.3 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color="#333333", image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Basic"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
@@ -757,7 +801,7 @@ def main():
     CTkLabel(mainframe.tab("Settings"), text="Enable Keyboard Shortcuts").grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="Remember Loaded Files").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="Edit Operation Codes (Advanced)").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="Reset Settings").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="Clear Application Data").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="User Manual").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
     macInputVar = tk.StringVar(value=settings[2][:-1])
     macInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="32:06:C2:00:0A:9E", textvariable=macInputVar, height=5, corner_radius=5, justify='right')
@@ -779,7 +823,7 @@ def main():
     loadedSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", variable=loadedVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleLoaded)
     loadedSwitch.grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
     editOpButton = CTkButton(mainframe.tab("Settings"), text="Edit", width=60, height=15, corner_radius=5, command=openSettings).grid(row=5,column=2,padx=8,pady=(4,0), sticky='e')
-    resetButton = CTkButton(mainframe.tab("Settings"), text="Reset", width=60, height=15, corner_radius=5, command=resetsettings)
+    resetButton = CTkButton(mainframe.tab("Settings"), text="Clear", width=60, height=15, corner_radius=5, command=resetsettings)
     resetButton.grid(row=6,column=2,padx=8,pady=(4,0), sticky='e')
     useManButton = CTkButton(mainframe.tab("Settings"), text="Open", width=60, height=15, corner_radius=5, command=openManual).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
 

@@ -6,7 +6,7 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 ## Features
 - Connect Button and Power Toggle
 - Single Colour Control
-- Hex Colour Control
+- Hex Colour Control and Saves
 - Pulsing and Flashing Control
 - Interval Timing Control
 - Alert SOS (Sounds from Hitman 3)
@@ -17,12 +17,11 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 ## Under Development
 Some of these features are available and ready to use in the CLI Version. Run the `lightcraft_cli.py` file.
 - Music Beats Sync (CLI)
-- Custom Colour Saves
 - Custom Operation Codes
 - Multi-Language Support (Planned)
 
 ## Installation
-There are no available release as of now but you may choose to run the source code yourself, Run the `lightcraft.py` file. Please read important notes below. Here are the requirements:
+There is no available release as of now but you may choose to run the source code yourself, Run the `lightcraft.py` file. Please read important notes below. Here are the requirements:
 
 - Python [Get it here](https://www.python.org/downloads/release/)
 - customtkinter [Get it here](https://github.com/TomSchimansky/CustomTkinter)
@@ -30,6 +29,7 @@ There are no available release as of now but you may choose to run the source co
 - bleak [Get it here](https://github.com/hbldh/bleak)
 - pillow
 - pygame
+- keyboard
   
 Install via the `requirements.txt`. I highly recommend you create a virtual environment (like conda).
 ```
@@ -37,7 +37,7 @@ pip install -r requirements.txt
 ```
 or simply paste the following in terminal
 ```
-pip install customtkinter, CTkColorPicker, bleak, pillow, pygame
+pip install customtkinter, CTkColorPicker, bleak, pillow, pygame, keyboard
 ```
 Clone this Repository by
 ```

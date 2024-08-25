@@ -30,6 +30,7 @@ class CTkColorPicker(customtkinter.CTkFrame):
         self.image_dimension = int(self._apply_widget_scaling(WIDTH - 100))
         self.target_dimension = int(self._apply_widget_scaling(20))
         self.lift()
+        self.dragging = False
 
         self.after(10)       
         self.default_hex_color = "#FFFFFF"  
@@ -92,6 +93,7 @@ class CTkColorPicker(customtkinter.CTkFrame):
         del self.target
         
     def on_mouse_drag(self, event):
+        self.dragging = True
         x = event.x
         y = event.y
         self.canvas.delete("all")
@@ -130,7 +132,8 @@ class CTkColorPicker(customtkinter.CTkFrame):
             self.rgb_avail = True
             if (er==None and eg==None and eb==None):
                 self.rgb_color = self.rgb_color_store
-            else:   
+            else:
+                self.dragging = False
                 self.rgb_color = [er, eg, eb]
                 self.rgb_color_store = [er, eg, eb]
 
