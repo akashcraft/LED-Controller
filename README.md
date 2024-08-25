@@ -55,7 +55,7 @@ LightCraft stores its configuration data in the `Settings.txt` which must be loc
 
 ## Screenshots
 ### Alert SOS
-<img width=600px src="https://github.com/user-attachments/assets/b29aadce-edfa-4427-8019-db3dd08a880c">
+<img width=600px src="https://github.com/user-attachments/assets/bc0a3e24-5a77-42b3-8de7-948accdf8f22">
 
 ### Settings
 <img width=600px src="https://github.com/user-attachments/assets/b360ae5b-77eb-42d3-ae64-fe243b3637ed">

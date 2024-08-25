@@ -177,7 +177,7 @@ def main():
                 radio_button_3.configure(state="normal")
                 radio_button_4.configure(state="normal")
                 alertButton.configure(state="normal")
-                alertText.configure(text="This feature can mimic real life alert and SOS sounds. Use at your own risk.")
+                alertText.configure(text="This feature mimics real-life sounds. Use at your own risk.")
                 macInput.configure(state="disabled")
                 macInputButton.configure(state="disabled")
                 uuidInput.configure(state="disabled")
@@ -675,7 +675,7 @@ def main():
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.6.1 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 1.6.2 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color="#333333", image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Basic"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
