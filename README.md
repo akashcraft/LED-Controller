@@ -11,12 +11,14 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 - Interval Timing Control
 - Alert SOS (Sounds from Hitman 3)
 - Keyboard Shortcuts
+- Settings
 - Dark Mode
 
 ## Under Development
 Some of these features are available and ready to use in the CLI Version. Run the `lightcraft_cli.py` file.
 - Music Beats Sync (CLI)
-- Settings
+- Custom Colour Saves
+- Custom Operation Codes
 - Multi-Language Support (Planned)
 
 ## Installation
@@ -27,6 +29,7 @@ There are no available release as of now but you may choose to run the source co
 - CTkColorPicker [Get it here](https://github.com/Akascape/CTkColorPicker)
 - bleak [Get it here](https://github.com/hbldh/bleak)
 - pillow
+- pygame
   
 Install via the `requirements.txt`. I highly recommend you create a virtual environment (like conda).
 ```
@@ -55,7 +58,7 @@ LightCraft stores its configuration data in the `Settings.txt` which must be loc
 <img width=600px src="https://github.com/user-attachments/assets/b29aadce-edfa-4427-8019-db3dd08a880c">
 
 ### Settings
-<img width=600px src="https://github.com/user-attachments/assets/faf9766a-cab5-4667-b1ce-14b85f69de5d">
+<img width=600px src="https://github.com/user-attachments/assets/b360ae5b-77eb-42d3-ae64-fe243b3637ed">
 
 
 ## User Manual

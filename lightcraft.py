@@ -2,7 +2,7 @@
 #Made by Akash Samanta
 
 from unittest import case
-import asyncio, threading, os, time, webbrowser
+import asyncio, threading, os, time, webbrowser, re, subprocess
 from bleak import BleakClient
 from PIL import Image
 from customtkinter import * # type: ignore
@@ -96,8 +96,19 @@ class BluetoothController:
         try:
             await self.client.connect()
             self.connected = True
-        except:
+        except Exception as e:
+            print(f"Failed to connect: {e}")
             self.connected = False
+
+    def stop(self):
+        if self.loop.is_running():
+            self.loop.call_soon_threadsafe(self.loop.stop)
+
+        def close_loop():
+            if not self.loop.is_running():
+                self.loop.close()
+
+        self.loop.call_soon_threadsafe(close_loop)
 
     async def disconnect(self):
         if self.client:
@@ -112,6 +123,7 @@ class BluetoothController:
         return asyncio.run_coroutine_threadsafe(coro, self.loop)
 
 def main():
+    global controller, loop_thread
     pygame.mixer.init()
     def debounce(wait):
         def decorator(fn):
@@ -138,10 +150,20 @@ def main():
             radio_button_4.configure(state="disabled")
             alertButton.configure(state="disabled")
             alertText.configure(text="Please connect your LED Strips first")
+            macInput.configure(state="normal")
+            macInputButton.configure(state="normal")
+            uuidInput.configure(state="normal")
+            uuidInputButton.configure(state="normal")
+            resetButton.configure(state="normal")
             disconnect()
         else:
             future = controller.run_coroutine(controller.connect())
             connect_button.configure(text="Connecting", state="disabled",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            macInput.configure(state="disabled")
+            macInputButton.configure(state="disabled")
+            uuidInput.configure(state="disabled")
+            uuidInputButton.configure(state="disabled")
+            resetButton.configure(state="disabled")
             root.after(20, lambda: check_connection(future))
 
     def check_connection(future):
@@ -156,9 +178,19 @@ def main():
                 radio_button_4.configure(state="normal")
                 alertButton.configure(state="normal")
                 alertText.configure(text="This feature can mimic real life alert and SOS sounds. Use at your own risk.")
+                macInput.configure(state="disabled")
+                macInputButton.configure(state="disabled")
+                uuidInput.configure(state="disabled")
+                uuidInputButton.configure(state="disabled")
+                resetButton.configure(state="disabled")
             else:
-                connect_button.configure(text="Reconnect", fg_color="red", hover_color="#AA0000", state="normal")
-                tk.messagebox.showerror("Connection Failure", "LightCraft failed to connect with your LED Strips. Please make sure that your Bluetooth is turned on and that your LED Strips are not bonded with another device. Verify the MAC Address in Settings.") # type: ignore
+                connect_button.configure(text="Reconnect", fg_color="#AA0000", hover_color="#880000", state="normal")
+                messagebox.showerror("Connection Failure", "LightCraft failed to connect with your LED Strips. Please make sure that your Bluetooth is turned on and that your LED Strips are not bonded with another device. Verify the MAC Address in Settings.")
+                macInput.configure(state="normal")
+                macInputButton.configure(state="normal")
+                uuidInput.configure(state="normal")
+                uuidInputButton.configure(state="normal")
+                resetButton.configure(state="normal")
         else:
             root.after(20, lambda: check_connection(future))
 
@@ -299,6 +331,82 @@ def main():
     def toggleTheme():
         print("Dummy Settings Function")
 
+    def macInputSave():
+        global settings, address
+        address = macInputVar.get()
+        if validate_mac_address(macInputVar.get()):
+            settings[2] = macInputVar.get() + "\n"
+            writesettings()
+            recreate_controller()
+            macInputButton.configure(state="disabled", text="Saved", fg_color="green")
+            macInputButton.after(1000, lambda: macInputButton.configure(state="normal", text="Save", fg_color="#1f6aa5"))
+        else:
+            messagebox.showerror("Invalid MAC Address", "Please enter a valid MAC address.")
+
+    def validate_mac_address(mac_address):
+        # MAC address format: XX:XX:XX:XX:XX:XX
+        mac_regex = r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
+        if re.match(mac_regex, mac_address):
+            return True
+        else:
+            return False
+
+    def uuidInputSave():
+        global settings, char_uuid
+        char_uuid = uuidInputVar.get()
+        if len(uuidInputVar.get()) == 4:
+            settings[3] = uuidInputVar.get() + "\n"
+            writesettings()
+            recreate_controller()
+            uuidInputButton.configure(state="disabled", text="Saved", fg_color="green")
+            uuidInputButton.after(1000, lambda: uuidInputButton.configure(state="normal", text="Save", fg_color="#1f6aa5"))
+        else:
+            messagebox.showerror("Invalid UUID", "Please enter a UUID with exactly 4 characters.")
+
+    def start_event_loop(controller):
+        asyncio.set_event_loop(controller.loop)
+        controller.loop.run_forever()
+
+    def recreate_controller():
+        global controller, loop_thread,address, char_uuid
+        # Stop the previous controller and thread, if they exist
+        if 'controller' in globals() and controller is not None:
+            controller.stop()
+            if loop_thread.is_alive():
+                loop_thread.join()
+        # Start the new controller
+        controller = BluetoothController(address, char_uuid)
+        loop_thread = threading.Thread(target=start_event_loop, args=(controller,))
+        loop_thread.start()
+
+    def toggleAutoCS():
+        global settings
+        settings[4] = str(autoCSVar.get()) + "\n"
+        writesettings()
+
+    def toggleKeyBind():
+        global settings
+        settings[5] = str(keyBindVar.get()) + "\n"
+        if keyBindVar.get()==0:
+            unbindAll()
+        else:
+            updateTab()
+        writesettings()
+
+    def toggleLoaded():
+        global settings
+        settings[6] = str(loadedVar.get()) + "\n"
+        writesettings()
+    
+    def openManual():
+        webbrowser.open(r"www.github.com/akashcraft/LED-Controller")
+    
+    def openSettings():
+        if os.path.exists("Settings.txt"):
+            subprocess.Popen(["Settings.txt"], shell=True)
+        else:
+            messagebox.showerror("Unable to Load Configuration","The settings file seems to be missing. LightCraft will attempt to restore default settings.")  
+
     #Alert Functions
     def playAlert():
         global interval
@@ -339,6 +447,7 @@ def main():
         root.unbind("<KeyRelease-b>")
         root.unbind("<KeyRelease-w>")
         root.unbind("<KeyRelease-p>")
+        root.unbind("<KeyRelease-c>")
         root.unbind("<space>")
         root.unbind("<Right>")
         root.unbind("<Left>")
@@ -355,6 +464,7 @@ def main():
         root.unbind("<KeyRelease-9>")
         root.unbind("<KeyRelease-0>")
         root.unbind("<KeyRelease-`>")
+        root.bind("<Tab>")
     
     def bindBasic():
         unbindAll()
@@ -392,69 +502,133 @@ def main():
         root.bind("<Tab>",lambda e:nextTab())
         root.bind("<space>",lambda e: alertButton.invoke())
 
+    def bindSettings():
+        unbindAll()
+        root.bind("<KeyRelease-c>",lambda e:connect())
+        root.bind("<Tab>",lambda e:nextTab())
+
     def nextTab():
-        tab = mainframe.get()
-        if tab=="Basic":
-            mainframe.set("Alert")
-        elif tab=="Alert":
-            mainframe.set("Music")
-        elif tab=="Music":
-            mainframe.set("Settings")
-        else:
-            mainframe.set("Basic")
-        updateTab()
+        if settings[5][:-1]=="1":
+            tab = mainframe.get()
+            if tab=="Basic":
+                mainframe.set("Alert")
+            elif tab=="Alert":
+                mainframe.set("Music")
+            elif tab=="Music":
+                mainframe.set("Settings")
+            else:
+                mainframe.set("Basic")
+            updateTab()
 
     def updateTab():
-        tab = mainframe.get()
-        macInput.configure(state="disabled")
-        uuidInput.configure(state="disabled")
-        if tab=="Basic":
-            bindBasic()
-        elif tab=="Alert":
-            bindAlert()
-        elif tab=="Music":
-            pass
-        else:
-            macInput.configure(state="normal")
-            uuidInput.configure(state="normal")
-            unbindAll()
+        if settings[5][:-1]=="1":
+            tab = mainframe.get()
+            macInput.configure(state="disabled")
+            uuidInput.configure(state="disabled")
+            if tab=="Basic":
+                bindBasic()
+            elif tab=="Alert":
+                bindAlert()
+            elif tab=="Music":
+                pass
+            else:
+                macInput.configure(state="normal")
+                uuidInput.configure(state="normal")
+                bindSettings
 
+    #Settings Validation and Reset
+    def createsettings():
+        try:
+            f=open("Settings.txt","w")
+        except PermissionError:
+            messagebox.showerror("Administrator Privileges Needed","Because of the nature of this LightCraft install, you will need to launch as administrator. To prevent this behaviour, please install LightCraft again on a user directory.")
+            quit()
+        f.write("LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n32:06:C2:00:0A:9E\nFFD9\n0\n1\n1\n")
+        f.close()
+
+    #Quit or Relaunch Application
     def destroyer(relaunch=False):
         global root
-        #TO DO Settings Ask for Confirmation
-        #if relaunch==False:
-        #    ans = tk.messagebox.askyesno("Close LightCraft","Are you sure you want to close LightCraft?") #Confirm Quit
-        #else:
-        ans = True
-        if ans:        
-            if relaunch:
-                root.destroy()
-                root = CTk()
-                main()
-            else:
-                disconnect()
-                root.destroy()
+        if relaunch:
+            root.destroy()
+            root = CTk()
+            main()
+        else:
+            disconnect()
+            root.destroy()
         controller.loop.call_soon_threadsafe(controller.loop.stop)
         loop_thread.join()
 
-    #Start Controller
-    controller = BluetoothController(address, char_uuid)
-    loop_thread = threading.Thread(target=controller.loop.run_forever)
-    loop_thread.start()
+    #For other functions to write Settings
+    def writesettings():
+        global settings
+        f=open("Settings.txt","w")
+        f.writelines(settings)
+        f.close()
+
+    #Normal Reset from Application
+    def resetsettings():
+        ans=messagebox.askyesno("Reset Settings","You will also lose any custom operation code configurations. Are you sure you want to reset all settings?")
+        if ans:
+            autoCSwitch.deselect()
+            keyBindSwitch.select()
+            loadedSwitch.select()
+            macInputVar.set("32:06:C2:00:0A:9E")
+            uuidInputVar.set("FFD9")
+            macInputSave()
+            uuidInputSave()
+            updateTab()
+            createsettings()
+            applysettings()
+
+    #Settings Corruption Reset
+    def resetsettings2():
+        messagebox.showerror("Unable to Load Settings","The settings file seems corrupted, possibly due to file tampering. LightCraft will attempt to restore default settings.")
+        createsettings()
+        applysettings()
+
+    #Boot and apply settings
+    def applysettings():
+        global settings, address, char_uuid
+        f=open("Settings.txt","a+")
+        f.seek(0)
+        settings=f.readlines()
+        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1']]
+        #print(len(settings),len(check)) #For Debug Only
+        #print(settings) #For Debug Only
+        for i in range(len(check)):
+            try:
+                if check[i]!=[]:
+                    if settings[i][:-1] not in check[i]:
+                        #print(settings[i][:-1],"and",check[i]) #For Debug Only
+                        resetsettings2()
+            except:
+                #print("FAIL") #For Debug Only
+                resetsettings2()
+        address=settings[2][:-1]
+        char_uuid=settings[3][:-1]
+        f.close()
+
+    #Getting settings
+    if not os.path.exists("Settings.txt"):
+        createsettings()
 
     #Making the Application
     root.title("LightCraft")
     root.protocol("WM_DELETE_WINDOW", destroyer)
     root.iconbitmap(r".\Resources\logo.ico")
-
-    #TO DO Settings
-    #applysettings()
+    applysettings()
     userwinx = root.winfo_screenwidth()
     userwiny = root.winfo_screenheight()
     x = (userwinx)//3
     y = (userwiny)//3
     root.geometry(f"750x410+{x}+{y}")
     root.resizable(False,False)
+
+    #Start Controller
+    controller = BluetoothController(address, char_uuid)
+    loop_thread = threading.Thread(target=start_event_loop, args=(controller,))
+    loop_thread.start()
 
     #Frames
     mainframe=CTkTabview(root, command=updateTab)
@@ -501,7 +675,7 @@ def main():
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.6.0 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 1.6.1 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color="#333333", image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Basic"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
@@ -582,19 +756,32 @@ def main():
     CTkLabel(mainframe.tab("Settings"), text="Auto Connect").grid(row=2,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="Enable Keyboard Shortcuts").grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="Remember Loaded Files").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="Edit Operation Codes").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(mainframe.tab("Settings"), text="Edit Operation Codes (Advanced)").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="Reset Settings").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(mainframe.tab("Settings"), text="User Manual").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
-    macInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="32:06:C2:00:0A:9E", height=5, corner_radius=5)
-    macInput.grid(row=0,column=2,padx=5,pady=(4,0), sticky='e')
-    uuidInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="FFD9", height=5, corner_radius=5)
-    uuidInput.grid(row=1,column=2,padx=5,pady=(4,0), sticky='e')
-    autoCSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=2,column=2,padx=(5,0),pady=(4,0), sticky='e')
-    keyBindSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=3,column=2,padx=(5,0),pady=(4,0), sticky='e')
-    loadedSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme).grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
-    editOpButton = CTkButton(mainframe.tab("Settings"), text="Edit", width=60, height=15, corner_radius=5, command=toggleTheme).grid(row=5,column=2,padx=8,pady=(4,0), sticky='e')
-    resetButton = CTkButton(mainframe.tab("Settings"), text="Reset", width=60, height=15, corner_radius=5, command=toggleTheme).grid(row=6,column=2,padx=8,pady=(4,0), sticky='e')
-    useManButton = CTkButton(mainframe.tab("Settings"), text="Open", width=60, height=15, corner_radius=5, command=toggleTheme).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
+    macInputVar = tk.StringVar(value=settings[2][:-1])
+    macInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="32:06:C2:00:0A:9E", textvariable=macInputVar, height=5, corner_radius=5, justify='right')
+    macInput.grid(row=0,column=1,padx=5,pady=(4,0), sticky='e')
+    macInputButton= CTkButton(mainframe.tab("Settings"), text="Save", width=60, height=15, corner_radius=5, command=macInputSave)
+    macInputButton.grid(row=0,column=2,padx=8,pady=(4,0), sticky='e')
+    uuidInputVar = tk.StringVar(value=settings[3][:-1])
+    uuidInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="FFD9", textvariable=uuidInputVar, height=5, corner_radius=5, justify='right')
+    uuidInputButton = CTkButton(mainframe.tab("Settings"), text="Save", width=60, height=15, corner_radius=5, command=uuidInputSave)
+    uuidInputButton.grid(row=1,column=2,padx=8,pady=(4,0), sticky='e')
+    uuidInput.grid(row=1,column=1,padx=5,pady=(4,0), sticky='e')
+    autoCSVar = tk.IntVar(value=int(settings[4][:-1]))
+    autoCSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", variable=autoCSVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleAutoCS)
+    autoCSwitch.grid(row=2,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    keyBindVar = tk.IntVar(value=int(settings[5][:-1]))
+    keyBindSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", variable=keyBindVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleKeyBind)
+    keyBindSwitch.grid(row=3,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    loadedVar = tk.IntVar(value=int(settings[6][:-1]))
+    loadedSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", variable=loadedVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleLoaded)
+    loadedSwitch.grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    editOpButton = CTkButton(mainframe.tab("Settings"), text="Edit", width=60, height=15, corner_radius=5, command=openSettings).grid(row=5,column=2,padx=8,pady=(4,0), sticky='e')
+    resetButton = CTkButton(mainframe.tab("Settings"), text="Reset", width=60, height=15, corner_radius=5, command=resetsettings)
+    resetButton.grid(row=6,column=2,padx=8,pady=(4,0), sticky='e')
+    useManButton = CTkButton(mainframe.tab("Settings"), text="Open", width=60, height=15, corner_radius=5, command=openManual).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
 
     #Alert
     mainframe.tab("Alert").grid_columnconfigure(0,weight=1)
@@ -617,9 +804,10 @@ def main():
     alertButton = CTkButton(mainframe.tab("Alert"), text="Play Alert", font=CTkFont(size=bsize), width=bwidth, height=bheight, corner_radius=5, command=playAlert, state="disabled")
     alertButton.grid(row=2,column=0,padx=0,pady=(10,0))
 
-    #TO DO Settings Auto Reconnect
-    #root.after(20,connect)
-    bindBasic()
+    if settings[4][:-1]=="1":
+        root.after(20,connect)
+    if settings[5][:-1]=="1":
+        bindBasic()
     root.mainloop()
 
 if __name__ == "__main__":
