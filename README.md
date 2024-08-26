@@ -6,10 +6,12 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 ## Features
 - Connect Button and Power Toggle
 - Single Colour Control
-- Hex Colour Control and Saves
+- Hex Colour Control
+- Custom Colour Saves
 - Pulsing and Flashing Control
 - Interval Timing Control
 - Alert SOS (Sounds from Hitman 3)
+- Music Player
 - Keyboard Shortcuts
 - Settings
 - Dark Mode

@@ -1,7 +1,6 @@
 #LightCraft Source Code
 #Made by Akash Samanta
 
-from unittest import case
 import asyncio, threading, os, time, webbrowser, re, subprocess, keyboard
 from bleak import BleakClient
 from PIL import Image
@@ -22,6 +21,12 @@ interval = 5
 isFlashing = False
 isPulsing = True
 linkColour = "white"
+isPlaying = False
+isLinked = False
+isLoaded = False
+isUpdatingSlider = False
+seekAmount = 0.5
+isHidden = False
 
 validColours = {
     'red': [255, 0, 0],
@@ -284,6 +289,7 @@ def main():
                 colorpicker.label.configure(text=settings[index][:-1],fg_color=settings[index][:-1])
                 sendHex(settings[index][:-1])
     
+    @debounce(0.1)
     def sendColourWB(r,g,b):
         global linkColour
         if (r==255 and g==255 and b==255):
@@ -363,9 +369,6 @@ def main():
             CTkButton(frame,text="", fg_color="#{:02x}{:02x}{:02x}".format(r, g, b), hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourWB(r,g,b)).grid(row=row,column=col,padx=(10,0),pady=(10,0))
 
     #Settings Functions
-    def toggleTheme():
-        print("Dummy Settings Function")
-
     def macInputSave():
         global settings, address
         address = macInputVar.get()
@@ -430,7 +433,24 @@ def main():
 
     def toggleLoaded():
         global settings
+        if loadedVar.get()==0:
+            clearload()
         settings[6] = str(loadedVar.get()) + "\n"
+        writesettings()
+
+    def toggleTheme():
+        global settings
+        settings[14] = str(darkModeVar.get()) + "\n"
+        messagebox.showinfo("Theme Change","The theme will change after you restart LightCraft.")
+        writesettings()
+
+    def toggleHidden():
+        global settings, isHidden
+        if hiddenVar.get()==0:
+            isHidden = False
+        else:
+            isHidden = True
+        settings[15] = str(hiddenVar.get()) + "\n"
         writesettings()
     
     def openManual():
@@ -445,6 +465,8 @@ def main():
     #Alert Functions
     def playAlert():
         global interval
+        if not isOn:
+            togglePower()
         enableRepeat()
         alert = alert_var.get()
         pulseflash_var.set("red_pulse")
@@ -475,8 +497,153 @@ def main():
         sendColourWB(255,0,0)
         alertButton.configure(text="Play Alert",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"), command=playAlert)
 
+    #Music Functions
+    def clearload():
+        load_button.configure(text="Load",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+        pygame.mixer.music.unload()
+        heading3.configure(text="No Music Loaded")
+        play_button.configure(state="disabled")
+        link_button.configure(state="disabled")
+        add_button.configure(state="disabled")
+        seek_button.configure(state="disabled", text="Seek")
+        stop_button.configure(state="disabled")
+        musicframechild.grid_forget()
+
+    def load(autoload=False):
+        global isLoaded, music_length, position
+        if not autoload:
+            music = filedialog.askopenfilename(filetypes=[("MP3 Files", "*.mp3")])
+            if music == "":
+                clearload()
+                isLoaded = False
+                if isPlaying:
+                    stop()
+                return
+            else:
+                if settings[6][:-1] == "1":
+                    settings[12] = music + "\n"
+                    writesettings()
+        else:
+            music = settings[12][:-1]
+        fobj = open(music.split(".")[0]+" LightCraft.txt","a+")
+        if isHidden:
+            os.system(f'attrib +h "{music.split(".")[0]} LightCraft.txt"')
+        fobj.close()
+        isLoaded = True
+        musicframechild.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
+        music_length = pygame.mixer.Sound(music).get_length()
+        load_button.configure(text="Loaded", fg_color="green", hover_color="#00AA00")
+        heading3.configure(text=music.split("/")[-1].split(".")[0])
+        play_button.configure(state="normal")
+        link_button.configure(state="normal")
+        add_button.configure(state="normal")
+        seek_button.configure(state="normal", text=str(seekAmount).rstrip('0').rstrip('.') + "s")
+        stop_button.configure(state="normal")
+        total_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+".0")
+        pygame.mixer.music.load(music)
+        pygame.mixer.music.play()
+        pygame.mixer.music.pause()
+        position = 0
+
+    def update_music_slider():
+        global isPlaying, isUpdatingSlider, position
+        if isPlaying and not isUpdatingSlider:
+            slider_value = (position / music_length / 1000) * 100
+            music_slider.set(slider_value)
+            actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position//1000))+"."+format_ms(position%1000))
+            position += 100
+            if position >= music_length * 1000:
+                stop()
+            root.after(100, update_music_slider)
+
+    def set_music_slider(offset=0):
+        global isUpdatingSlider, position
+        isUpdatingSlider = True
+        new_pos = (music_slider.get() / 100) * music_length
+        if new_pos + offset < 0:
+            new_pos = 0
+        elif new_pos + offset > music_length:
+            new_pos = music_length
+        else:
+            new_pos += offset
+        pygame.mixer.music.set_pos(new_pos)
+        position = new_pos * 1000
+        if not isPlaying:
+            slider_value = (position / music_length / 1000) * 100
+            music_slider.set(slider_value)
+            actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position/1000))+"."+format_ms(position%1000))
+        isUpdatingSlider = False
+
+    def format_ms(ms):
+        if ms < 100:
+            return "0"
+        else:
+            return str(ms)[:1]
+
+    def play():
+        global isPlaying
+        if not isPlaying:
+            isPlaying = True
+            play_button.configure(text="Pause")
+            pygame.mixer.music.unpause()
+            update_music_slider()
+        else:
+            isPlaying = False
+            play_button.configure(text="Play")
+            pygame.mixer.music.pause()
+
+    def stop():
+        global isPlaying, position
+        position = 0
+        actual_time.configure(text="00:00.0")
+        music_slider.set(0)
+        isPlaying = False
+        play_button.configure(text="Play")
+        pygame.mixer.music.stop()
+        pygame.mixer.music.play()
+        pygame.mixer.music.pause()
+        
+    def link():
+        global isLinked
+        if not isLinked:
+            isLinked = True
+            link_button.configure(text="Unlink")
+        else:
+            isLinked = False
+            link_button.configure(text="Link")
+
+    def seekBack():
+        set_music_slider(-seekAmount) # type: ignore
+    
+    def seekForward():
+        set_music_slider(seekAmount) # type: ignore
+
+    def seekAdjust(manual=False, invert=False):
+        global seekAmount
+        seeks = [0.1, 0.5, 1, 2, 5, 10]
+        index = seeks.index(seekAmount)
+        if invert:
+            index -= 1
+            if index == -1:
+                index = 0
+        else:
+            index += 1
+            if index == 6:
+                if manual:
+                    index = 0
+                else:
+                    index = 5
+        seekAmount = seeks[index]
+        settings[13] = str(seekAmount) + "\n"
+        writesettings()
+        seek_button.configure(text=str(seekAmount) + "s")
+
     #Page Functions
     def unbindAll():
+        root.unbind("<KeyRelease-o>")
+        root.unbind("<KeyRelease-s>")
+        root.unbind("<KeyRelease-l>")
+        root.unbind("<KeyRelease-a>")
         root.unbind("<KeyRelease-r>")
         root.unbind("<KeyRelease-g>")
         root.unbind("<KeyRelease-b>")
@@ -537,6 +704,20 @@ def main():
         root.bind("<Tab>",lambda e:nextTab())
         root.bind("<space>",lambda e: alertButton.invoke())
 
+    def bindMusic():
+        unbindAll()
+        root.bind("<KeyRelease-c>",lambda e:connect())
+        root.bind("<KeyRelease-o>",lambda e:load_button.invoke())
+        root.bind("<KeyRelease-s>",lambda e:stop_button.invoke())
+        root.bind("<KeyRelease-l>",lambda e:link_button.invoke())
+        root.bind("<KeyRelease-a>",lambda e:add_button.invoke())
+        root.bind("<Tab>",lambda e:nextTab())
+        root.bind("<space>",lambda e: play_button.invoke())
+        root.bind("<Left>",lambda e:seekBack())
+        root.bind("<Right>",lambda e:seekForward())
+        root.bind("<Up>",lambda e:seekAdjust())
+        root.bind("<Down>",lambda e:seekAdjust(invert=True))
+
     def bindSettings():
         unbindAll()
         root.bind("<KeyRelease-c>",lambda e:connect())
@@ -556,21 +737,43 @@ def main():
             updateTab()
 
     def updateTab():
-        if settings[5][:-1]=="1":
-            tab = mainframe.get()
-            macInput.configure(state="disabled")
-            uuidInput.configure(state="disabled")
-            if tab=="Basic":
-                bindBasic()
-            elif tab=="Alert":
-                bindAlert()
-            elif tab=="Music":
-                pass
+        stopAlert()
+        if isPlaying:
+            stop()
+        tab = mainframe.get()
+        macInput.configure(state="disabled")
+        uuidInput.configure(state="disabled")
+        if tab=="Basic":
+            bindBasic()
+        elif tab=="Alert":
+            bindAlert()
+        elif tab=="Music":
+            bindMusic()
+            connect_button.grid_forget()
+            power_button.grid_forget()
+            headinglogo.grid_forget()
+            heading1.grid_forget()
+            heading2.grid_forget()
+            if isLoaded:
+                pygame.mixer.music.load(settings[12][:-1])
+                pygame.mixer.music.play()
+                pygame.mixer.music.pause()
             else:
+                clearload()
+            mcontrolframe.grid(row=0,column=0,rowspan=2,columnspan=4,padx=10,pady=(5,0),sticky='nsew')
+        else:
+            if not isConnected:
                 macInput.configure(state="normal")
                 uuidInput.configure(state="normal")
-                bindSettings
-
+            bindSettings()
+        if tab!="Music":
+            connect_button.grid(row=0,column=2,rowspan=2,padx=0, sticky='e')
+            power_button.grid(row=0,column=3,rowspan=2,padx=10, sticky='e')
+            headinglogo.grid(row=0,column=0,rowspan=2,pady=10, sticky='w')
+            heading1.grid(row=0,column=1,pady=0, sticky='sw')
+            heading2.grid(row=1,column=1,pady=0, sticky='nw')
+            mcontrolframe.grid_forget()
+            
     #Settings Validation and Reset
     def createsettings():
         try:
@@ -578,19 +781,16 @@ def main():
         except PermissionError:
             messagebox.showerror("Administrator Privileges Needed","Because of the nature of this LightCraft install, you will need to launch as administrator. To prevent this behaviour, please install LightCraft again on a user directory.")
             quit()
-        f.write("LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n32:06:C2:00:0A:9E\nFFD9\n0\n1\n1\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n")
+        f.write("LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n32:06:C2:00:0A:9E\nFFD9\n0\n1\n1\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\nSave\n0.5\n1\n1\n")
         f.close()
 
     #Quit or Relaunch Application
-    def destroyer(relaunch=False):
-        global root
-        if relaunch:
-            root.destroy()
-            root = CTk()
-            main()
-        else:
-            disconnect()
-            root.destroy()
+    def destroyer():
+        global root, isPlaying
+        if isPlaying:
+            stop()
+        disconnect()
+        root.destroy()
         controller.loop.call_soon_threadsafe(controller.loop.stop)
         loop_thread.join()
 
@@ -629,11 +829,11 @@ def main():
 
     #Boot and apply settings
     def applysettings():
-        global settings, address, char_uuid
+        global settings, address, char_uuid, seekAmount, isHidden
         f=open("Settings.txt","a+")
         f.seek(0)
         settings=f.readlines()
-        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1'],['Hex'],['Hex'],['Hex'],['Hex'],['Hex']]
+        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1'],['Hex'],['Hex'],['Hex'],['Hex'],['Hex'],[],['0.1','0.5','1','2','5','10'],['0','1'],['0','1']]
         #print(len(settings),len(check)) #For Debug Only
         #print(settings) #For Debug Only
         for i in range(len(check)):
@@ -651,6 +851,15 @@ def main():
                 resetsettings2()
         address=settings[2][:-1]
         char_uuid=settings[3][:-1]
+        seekAmount=float(settings[13][:-1])
+        if settings[14][:-1]=="1":
+            set_appearance_mode("dark")
+        else:
+            set_appearance_mode("light")
+        if settings[15][:-1]=="1":
+            isHidden = True
+        else:
+            isHidden = False
         f.close()
 
     #Getting settings
@@ -666,7 +875,7 @@ def main():
     userwiny = root.winfo_screenheight()
     x = (userwinx)//3
     y = (userwiny)//3
-    root.geometry(f"750x410+{x}+{y}")
+    root.geometry(f"750x420+{x}+{y}")
     root.resizable(False,False)
 
     #Start Controller
@@ -680,9 +889,11 @@ def main():
     mainframe.add("Alert")
     mainframe.add("Music")
     mainframe.add("Settings")
+    settingschild=CTkScrollableFrame(mainframe.tab("Settings"), fg_color="transparent")
     sgframe=CTkFrame(mainframe.tab("Basic"), fg_color="transparent")
     mgframe=CTkFrame(mainframe.tab("Basic"), fg_color="transparent")
     alertframe=CTkFrame(mainframe.tab("Alert"))
+    mcontrolframe=CTkFrame(root, fg_color="transparent", height=70)
 
     #Button Scaling
     bsize=16
@@ -707,6 +918,7 @@ def main():
         tk.messagebox.showerror("Missing Resources","LightCraft could not find critical resources. The Resources folder may have been corrupted or deleted. Please re-install LightCraft from official sources.") # type: ignore #Missing Resources
         quit()
     imgtk1 = CTkImage(light_image=image1,size=(60,60))
+    imgtk10 = CTkImage(light_image=image1,size=(20,20))
     imgtk2 = CTkImage(light_image=image2,size=(25,25))
     imgtk3 = CTkImage(light_image=image3,size=(25,25))
     imgtk4 = CTkImage(light_image=image4,size=(25,25))
@@ -719,7 +931,7 @@ def main():
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.6.3 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 1.7.3 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color="#333333", image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Basic"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
@@ -794,38 +1006,50 @@ def main():
     intervalSlider.grid(row=1,column=2,rowspan=6, padx=0, sticky='se')
 
     #Settings
-    mainframe.tab("Settings").grid_columnconfigure(1,weight=1)
-    CTkLabel(mainframe.tab("Settings"), text="LED MAC Address").grid(row=0,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="Characteristic UUID").grid(row=1,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="Auto Connect").grid(row=2,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="Enable Keyboard Shortcuts").grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="Remember Loaded Files").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="Edit Operation Codes (Advanced)").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="Clear Application Data").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(mainframe.tab("Settings"), text="User Manual").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
+    mainframe.tab("Settings").grid_columnconfigure(0,weight=1)
+    mainframe.tab("Settings").grid_rowconfigure(0,weight=1)
+    settingschild.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
+    settingschild.grid_columnconfigure(1,weight=1)
+    CTkLabel(settingschild, text="LED MAC Address").grid(row=0,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Characteristic UUID").grid(row=1,column=0,padx=5,pady=(4,0), sticky='w')
+    darkModeLabel = CTkLabel(settingschild, text="Dark Mode")
+    darkModeLabel.grid(row=2,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Auto Connect").grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Enable Keyboard Shortcuts").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Remember Loaded Files").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Make Hidden Configurations").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Edit Operation Codes (Advanced)").grid(row=8,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Clear Application Data").grid(row=9,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="User Manual").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
     macInputVar = tk.StringVar(value=settings[2][:-1])
-    macInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="32:06:C2:00:0A:9E", textvariable=macInputVar, height=5, corner_radius=5, justify='right')
+    macInput = CTkEntry(settingschild, placeholder_text="32:06:C2:00:0A:9E", textvariable=macInputVar, height=5, corner_radius=5, justify='right')
     macInput.grid(row=0,column=1,padx=5,pady=(4,0), sticky='e')
-    macInputButton= CTkButton(mainframe.tab("Settings"), text="Save", width=60, height=15, corner_radius=5, command=macInputSave)
+    macInputButton= CTkButton(settingschild, text="Save", width=60, height=15, corner_radius=5, command=macInputSave)
     macInputButton.grid(row=0,column=2,padx=8,pady=(4,0), sticky='e')
     uuidInputVar = tk.StringVar(value=settings[3][:-1])
-    uuidInput = CTkEntry(mainframe.tab("Settings"), placeholder_text="FFD9", textvariable=uuidInputVar, height=5, corner_radius=5, justify='right')
-    uuidInputButton = CTkButton(mainframe.tab("Settings"), text="Save", width=60, height=15, corner_radius=5, command=uuidInputSave)
+    uuidInput = CTkEntry(settingschild, placeholder_text="FFD9", textvariable=uuidInputVar, height=5, corner_radius=5, justify='right')
+    uuidInputButton = CTkButton(settingschild, text="Save", width=60, height=15, corner_radius=5, command=uuidInputSave)
     uuidInputButton.grid(row=1,column=2,padx=8,pady=(4,0), sticky='e')
     uuidInput.grid(row=1,column=1,padx=5,pady=(4,0), sticky='e')
+    darkModeVar = tk.IntVar(value=int(settings[14][:-1]))
+    darkModeSwitch = CTkCheckBox(settingschild, text="", variable=darkModeVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme)
+    darkModeSwitch.grid(row=2,column=2,padx=(5,0),pady=(4,0), sticky='e')
     autoCSVar = tk.IntVar(value=int(settings[4][:-1]))
-    autoCSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", variable=autoCSVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleAutoCS)
-    autoCSwitch.grid(row=2,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    autoCSwitch = CTkCheckBox(settingschild, text="", variable=autoCSVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleAutoCS)
+    autoCSwitch.grid(row=3,column=2,padx=(5,0),pady=(4,0), sticky='e')
     keyBindVar = tk.IntVar(value=int(settings[5][:-1]))
-    keyBindSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", variable=keyBindVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleKeyBind)
-    keyBindSwitch.grid(row=3,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    keyBindSwitch = CTkCheckBox(settingschild, text="", variable=keyBindVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleKeyBind)
+    keyBindSwitch.grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
     loadedVar = tk.IntVar(value=int(settings[6][:-1]))
-    loadedSwitch = CTkCheckBox(mainframe.tab("Settings"), text="", variable=loadedVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleLoaded)
-    loadedSwitch.grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
-    editOpButton = CTkButton(mainframe.tab("Settings"), text="Edit", width=60, height=15, corner_radius=5, command=openSettings).grid(row=5,column=2,padx=8,pady=(4,0), sticky='e')
-    resetButton = CTkButton(mainframe.tab("Settings"), text="Clear", width=60, height=15, corner_radius=5, command=resetsettings)
-    resetButton.grid(row=6,column=2,padx=8,pady=(4,0), sticky='e')
-    useManButton = CTkButton(mainframe.tab("Settings"), text="Open", width=60, height=15, corner_radius=5, command=openManual).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
+    loadedSwitch = CTkCheckBox(settingschild, text="", variable=loadedVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleLoaded)
+    loadedSwitch.grid(row=5,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    hiddenVar = tk.IntVar(value=int(settings[15][:-1]))
+    hiddenSwitch = CTkCheckBox(settingschild, text="", variable=hiddenVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleHidden)
+    hiddenSwitch.grid(row=6,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    editOpButton = CTkButton(settingschild, text="Edit", width=60, height=15, corner_radius=5, command=openSettings).grid(row=8,column=2,padx=8,pady=(4,0), sticky='e')
+    resetButton = CTkButton(settingschild, text="Clear", width=60, height=15, corner_radius=5, command=resetsettings)
+    resetButton.grid(row=9,column=2,padx=8,pady=(4,0), sticky='e')
+    useManButton = CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=openManual).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
 
     #Alert
     mainframe.tab("Alert").grid_columnconfigure(0,weight=1)
@@ -848,11 +1072,47 @@ def main():
     alertButton = CTkButton(mainframe.tab("Alert"), text="Play Alert", font=CTkFont(size=bsize), width=bwidth, height=bheight, corner_radius=5, command=playAlert, state="disabled")
     alertButton.grid(row=2,column=0,padx=0,pady=(10,0))
 
+    #Music
+    mainframe.tab("Music").grid_columnconfigure(0,weight=1)
+    mcontrolframe.grid_columnconfigure(1,weight=1)
+    heading3 = CTkLabel(mcontrolframe, text="No Music Loaded", font=CTkFont(size=15))
+    heading3.grid(row=0,column=0,padx=10,sticky='nw')
+    mcontrolsframe = CTkFrame(mcontrolframe, fg_color="transparent")
+    mcontrolsframe.grid(row=0,column=1,columnspan=2,padx=5,pady=(0,5),sticky='e')
+    musicframe = CTkScrollableFrame(mainframe.tab("Music"), bg_color="transparent", fg_color="transparent")
+    musicframe.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
+    load_button = CTkButton(mcontrolsframe, text="Load", width=60, height=15, corner_radius=5, command=load)
+    load_button.grid(row=0,column=0,padx=5,pady=5)
+    link_button = CTkButton(mcontrolsframe, text="Link", width=60, height=15, corner_radius=5, command=link, state="disabled")
+    link_button.grid(row=0,column=1,padx=5,pady=5)
+    add_button = CTkButton(mcontrolsframe, text="Add", width=60, height=15, corner_radius=5, state="disabled")
+    add_button.grid(row=0,column=2,padx=5,pady=5)
+    seek_button = CTkButton(mcontrolsframe, text="Seek", width=60, height=15, corner_radius=5, command=lambda: seekAdjust(manual=True), state="disabled")
+    seek_button.grid(row=0,column=3,padx=5,pady=5)
+    stop_button = CTkButton(mcontrolsframe, text="Stop", width=60, height=15, corner_radius=5, command=stop, state="disabled")
+    stop_button.grid(row=0,column=4,padx=5,pady=5)
+    play_button = CTkButton(mcontrolsframe, text="Play", width=60, height=15, corner_radius=5, command=play, state="disabled")
+    play_button.grid(row=0,column=5,padx=5,pady=5)
+    music_slider = CTkSlider(mcontrolframe, from_=0, to=100, orientation="horizontal", progress_color="white", border_width=3, height=12, command=lambda e: set_music_slider())
+    music_slider.grid(row=1,column=0,columnspan=8,padx=8,pady=(5,3),sticky='ew')
+    music_slider.set(0)
+    actual_time = CTkLabel(mcontrolframe, text="00:00:00", font=CTkFont(size=12))
+    actual_time.grid(row=2,column=0,padx=10,pady=0, sticky='w')
+    total_time = CTkLabel(mcontrolframe, text="00:00:00", font=CTkFont(size=12))
+    total_time.grid(row=2,column=2,padx=10,pady=0, sticky='e')
+    musicframechild = CTkFrame(musicframe, fg_color="transparent")
+    musicframechild.grid_columnconfigure(0,weight=1)
+
     if settings[4][:-1]=="1":
         root.after(20,connect)
     if settings[5][:-1]=="1":
         bindBasic()
+    if settings[6][:-1]=="1" and os.path.exists(settings[12][:-1]):
+        load(True)
+    else:
+        clearload()
     root.mainloop()
+
 
 if __name__ == "__main__":
     main()
