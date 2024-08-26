@@ -1,1 +1,2 @@
-*.pyc
+Configurations/*
+__pycache__/*
