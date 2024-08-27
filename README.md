@@ -1,7 +1,7 @@
 # LightCraft
 Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 
-<img width=600px src="https://github.com/user-attachments/assets/99a503c9-712a-48a3-841e-683dd15f06a1">
+<img width=600px src="https://github.com/user-attachments/assets/9f66c3ec-44bc-48c8-bb99-abcd90124662">
 
 ## Features
 - Connect Button and Power Toggle
@@ -11,14 +11,14 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 - Pulsing and Flashing Control
 - Interval Timing Control
 - Alert SOS (Sounds from Hitman 3)
-- Music Player
+- Music Player with LED Sync
 - Keyboard Shortcuts
 - Settings
 - Dark Mode
 
 ## Under Development
 Some of these features are available and ready to use in the CLI Version. Run the `lightcraft_cli.py` file.
-- Music Beats Sync (CLI)
+- Beat Function in Music Player
 - Custom Operation Codes
 - Multi-Language Support (Planned)
 
@@ -57,10 +57,13 @@ LightCraft stores its configuration data in the `Settings.txt` which must be loc
 
 ## Screenshots
 ### Alert SOS
-<img width=600px src="https://github.com/user-attachments/assets/bc0a3e24-5a77-42b3-8de7-948accdf8f22">
+<img width=600px src="https://github.com/user-attachments/assets/d70d88b3-f898-4f2b-9ef9-85f327614674">
+
+### Music Player
+<img width=600px src="https://github.com/user-attachments/assets/188b8216-53b5-4af2-ba98-a7115da286b9">
 
 ### Settings
-<img width=600px src="https://github.com/user-attachments/assets/b360ae5b-77eb-42d3-ae64-fe243b3637ed">
+<img width=600px src="https://github.com/user-attachments/assets/04b4b444-fd64-414d-b190-e473373aa1ea">
 
 
 ## User Manual

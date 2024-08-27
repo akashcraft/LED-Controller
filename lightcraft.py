@@ -1,6 +1,7 @@
 #LightCraft Source Code
 #Made by Akash Samanta
 
+import math
 import asyncio, threading, os, time, webbrowser, re, subprocess, keyboard
 from bleak import BleakClient
 from PIL import Image
@@ -43,7 +44,6 @@ validColours = {
     'indigo': [75, 0, 128],
     'purple': [128, 0, 128],
     'violet': [238, 0, 238],
-    'magenta': [255, 0, 255],
     'black': [0, 0, 0],
     'white': [255, 255, 255],
     'pink': [255, 0, 40],
@@ -129,6 +129,9 @@ class BluetoothController:
 def main():
     global controller, loop_thread
     pygame.mixer.init()
+
+    
+
     def debounce(wait):
         def decorator(fn):
             last_call = [0]
@@ -147,6 +150,7 @@ def main():
         global isConnected
         if isConnected:
             isConnected = False
+            link_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"),hover_color=("#2b6b8f","#0f4d67"))
             connect_button.configure(text="Connect", state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             radio_button_1.configure(state="disabled")
             radio_button_2.configure(state="disabled")
@@ -176,6 +180,8 @@ def main():
             if controller.connected:
                 isConnected = True
                 connect_button.configure(text="Connected", fg_color="green", hover_color="#005500", state="normal")
+                if isLoaded:
+                    link_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
                 radio_button_1.configure(state="normal")
                 radio_button_2.configure(state="normal")
                 radio_button_3.configure(state="normal")
@@ -265,6 +271,15 @@ def main():
         data = data[1:]
         data = bytearray([0x56, int(data[0:2], 16), int(data[2:4], 16), int(data[4:6], 16), 0x00, 0xf0, 0xaa])
         controller.run_coroutine(controller.sendCmd(data))
+    
+    def sendHexMusic(data):
+        data = data[1:]
+        data = bytearray([0x56, int(data[0:2], 16), int(data[2:4], 16), int(data[4:6], 16), 0x00, 0xf0, 0xaa])
+        controller.run_coroutine(controller.sendCmd(data))
+
+    def sendColourMusic(data):
+        hex_value = '#{:02x}{:02x}{:02x}'.format(*validColours[data])
+        sendHexMusic(hex_value)
 
     @debounce(0.1)
     def sendColourCB(button,index):
@@ -322,6 +337,18 @@ def main():
             data = bytearray([0xbb,validPulseCode[linkColour+"_pulse"],int(interval),0x44])
         controller.run_coroutine(controller.sendCmd(data))
 
+    def sendPulseMusic(colour, freq):
+        if colour == "rainbow":
+            colour = "all"
+        elif colour == "red blue":
+            colour = "rb"
+        elif colour == "green blue":
+            colour = "gb"
+        elif colour == "red green":
+            colour = "rg"
+        data = bytearray([0xbb,validPulseCode[colour+"_pulse"],10-int(freq),0x44])
+        controller.run_coroutine(controller.sendCmd(data))
+
     @debounce(0.1)
     def sendFlash(isSet=False):
         global isPulsing, isFlashing, linkColour
@@ -333,6 +360,12 @@ def main():
             sliderColourFun(pulseflash_var.get().split("_")[0])
         else:
             data = bytearray([0xbb,validFlashCode[linkColour+"_flash"],int(interval),0x44])
+        controller.run_coroutine(controller.sendCmd(data))
+
+    def sendFlashMusic(colour, freq):
+        if colour == "rainbow":
+            colour = "all"
+        data = bytearray([0xbb,validFlashCode[colour+"_flash"],10-int(freq),0x44])
         controller.run_coroutine(controller.sendCmd(data))
 
     @debounce(0.1)
@@ -433,7 +466,7 @@ def main():
     def toggleLoaded():
         global settings
         if loadedVar.get()==0:
-            clearload()
+            settings[12] = "Save\n"
         settings[6] = str(loadedVar.get()) + "\n"
         writesettings()
 
@@ -511,7 +544,9 @@ def main():
         musicframechild.grid_forget()
 
     def load(autoload=False):
-        global isLoaded, music_length, position
+        global isLoaded, music_length, position, config_file_path, data
+        for child in musicframechild.winfo_children():
+            child.destroy()
         if not autoload:
             music = filedialog.askopenfilename(filetypes=[("MP3 Files", "*.mp3")])
             if music == "":
@@ -534,8 +569,15 @@ def main():
         
         music_name = os.path.basename(music).split(".")[0]
         config_file_path = os.path.join(config_dir, f"{music_name} LightCraft.txt")
-        fobj = open(config_file_path, "a+")
+        if not os.path.exists(config_file_path):
+            fobj = open(config_file_path, "w")
+            fobj.close()
+        fobj = open(config_file_path, "r")
+        data = fobj.readlines()
         fobj.close()
+        loadConfig()
+
+        #Config Load Successful
         isLoaded = True
         musicframechild.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
         music_length = pygame.mixer.Sound(music).get_length()
@@ -543,7 +585,8 @@ def main():
         heading3.configure(text=music_name)
         music_slider.configure(state="normal")
         play_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-        link_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+        if isConnected:
+            link_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
         add_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
         seek_button.configure(state="normal", text=str(seekAmount).rstrip('0').rstrip('.') + "s",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
         stop_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
@@ -554,7 +597,7 @@ def main():
         position = 0
 
     def update_music_slider():
-        global isPlaying, isUpdatingSlider, position
+        global isPlaying, isUpdatingSlider, position, cmds
         if isPlaying and not isUpdatingSlider:
             slider_value = (position / music_length / 1000) * 100
             music_slider.set(slider_value)
@@ -562,18 +605,36 @@ def main():
             position += 100
             if position >= music_length * 1000:
                 stop()
+            if isLinked and position in prohibited_times:
+                command_functions = {
+                    'sendColourMusic': sendColourMusic,
+                    'sendFlashMusic': sendFlashMusic,
+                    'sendPulseMusic': sendPulseMusic,
+                    'sendHexMusic': sendHexMusic,
+                }
+                cmd = cmds[prohibited_times.index(position)]
+                func_name, args = cmd.split('(')
+                args = args.rstrip(')').split('.')
+
+                if func_name in command_functions:
+                    command_functions[func_name](*args)
             root.after(100, update_music_slider)
 
     def set_music_slider(offset=0):
         global isUpdatingSlider, position
         isUpdatingSlider = True
-        new_pos = (music_slider.get() / 100) * music_length
-        if new_pos + offset < 0:
-            new_pos = 0
-        elif new_pos + offset > music_length:
-            new_pos = music_length
+        if isLinked:
+            sendColourMusic("red")
+        if offset == 0:
+            new_pos = (music_slider.get() / 100) * music_length
         else:
-            new_pos += offset
+            new_pos = position / 1000
+            if new_pos + offset < 0:
+                new_pos = 0
+            elif new_pos + offset > music_length:
+                new_pos = music_length
+            else:
+                new_pos += offset
         pygame.mixer.music.set_pos(new_pos)
         position = new_pos * 1000
         if not isPlaying:
@@ -610,7 +671,177 @@ def main():
         pygame.mixer.music.stop()
         pygame.mixer.music.play()
         pygame.mixer.music.pause()
-        
+
+    def loadConfig():
+        global cmd_frames, prohibited_times, fobj, data, cmds
+        cmd_frames, prohibited_times, cmds = [],[],[]
+        for i in data:
+            cmd = i.split(",")
+            index = int(cmd[0])-1
+            prohibited_times.append(int(cmd[1]))
+            newFrame = CTkFrame(musicframechild, corner_radius=5, fg_color=("#ebebeb","#515151"))
+            newFrame.grid_columnconfigure(5, weight=1)
+            newFrame.grid(row=index,column=0,padx=(0,5),pady=5, sticky='ew')
+            label1 = CTkLabel(newFrame, text=cmd[0], font=CTkFont(size=13), height=5)
+            label1.grid(row=0,column=0,padx=(10,0),pady=5, sticky='w')
+            label2 = CTkLabel(newFrame, text=cmd[2], font=CTkFont(size=13), height=5)
+            label2.grid(row=0,column=1,padx=(10,5),pady=5, sticky='w')
+            controlType = tk.StringVar(value=cmd[3])
+            combo1 = CTkComboBox(newFrame,variable=controlType, values=["Single","Hex","Pulse","Flash"], width=70, height=10, border_width=0, corner_radius=3, command=lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo1.grid(row=0,column=2,padx=(5,0),pady=0, sticky='w')
+            combo1.bind("<FocusIn>", lambda e: root.focus_set())
+            combo2, combo3, save_button, del_button = frameCreator(newFrame, index, cmd, controlType.get())
+            cmds.append(cmd[7])            
+            cmd_frames.append([newFrame, combo1, combo2, combo3, save_button, del_button, label1])
+
+    def frameCreator(newFrame, index, cmd, controlType):
+        secondControl= tk.StringVar(value=cmd[4])
+        thirdControl = tk.StringVar(value=cmd[5])
+        save_button = CTkButton(newFrame, text="", image=imgtk_save, fg_color="transparent", width=5, height=5)
+        if controlType == "Single":
+            combo2 = CTkComboBox(newFrame, variable=secondControl, values=[color.capitalize() for color in validColours.keys()], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo2.grid(row=0,column=3,padx=(5,0),pady=0, sticky='w')
+            combo3 = None
+        elif controlType == "Flash":
+            combo2 = CTkComboBox(newFrame, variable=secondControl, values=['Rainbow', 'RGB', 'White', 'Purple', 'Cyan', 'Yellow', 'Blue', 'Green', 'Red'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo2.grid(row=0,column=3,padx=(5,0),pady=0, sticky='w')
+            combo3 = CTkComboBox(newFrame, variable=thirdControl, values=['0','1','2','3','4','5','6','7','8','9','10'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo3.grid(row=0,column=4,padx=(5,0),pady=0, sticky='w')
+        elif controlType == "Pulse":
+            combo2 = CTkComboBox(newFrame, variable=secondControl, values=['Rainbow', 'RGB', 'Green Blue', 'Red Blue', 'Red Green', 'White', 'Purple', 'Cyan', 'Yellow', 'Blue', 'Green', 'Red'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo2.grid(row=0,column=3,padx=(5,0),pady=0, sticky='w')
+            combo3 = CTkComboBox(newFrame, variable=thirdControl, values=['0','1','2','3','4','5','6','7','8','9','10'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo3.grid(row=0,column=4,padx=(5,0),pady=0, sticky='w')
+        elif controlType == "Hex":
+            combo2 = CTkEntry(newFrame, textvariable=secondControl, width=70, height=10, border_width=0, corner_radius=3)
+            combo2.grid(row=0,column=3,padx=(5,0),pady=0, sticky='w')
+            save_button.configure(command= lambda value=combo2.get(), index=index, cmd=cmd: editCmd(index, cmd, value))
+            save_button.grid(row=0,column=6,padx=0,pady=0, sticky='e')
+            combo3 = None
+            combo2.bind("<FocusIn>", on_focus_in)
+            combo2.bind("<FocusOut>", on_focus_out)
+            combo2.bind("<Return>", lambda e: save_button.invoke())
+        if combo3 != None:
+            combo3.bind("<FocusIn>", lambda e: root.focus_set())
+        if controlType != "Hex":
+            combo2.bind("<FocusIn>", lambda e: root.focus_set())
+        del_button = CTkButton(newFrame, text="", image=imgtk_del, fg_color="transparent", hover_color="dark red", width=5, height=5, command= lambda index=index, cmd=cmd: delCmd(index, cmd))
+        del_button.grid(row=0,column=7,padx=(0,5),pady=0, sticky='e')
+        return combo2, combo3, save_button, del_button
+
+    def on_focus_in(event):
+        root.unbind("<Left>")
+        root.unbind("<space>")
+        root.unbind("<Right>")
+
+    def on_focus_out(event):
+        root.bind("<Left>", lambda e: seekBack())
+        root.bind("<space>",lambda e: play_button.invoke())
+        root.bind("<Right>", lambda e: seekForward())
+        root.focus_set()
+
+    def delCmd(index, cmd):
+        global data
+        del data[index]
+        for i in range(index, len(data)):
+            cmd = data[i].split(",")
+            cmd[0] = str(i+1)
+            data[i] = ','.join(cmd)
+        refreshCmds()
+    
+    def refreshCmds():
+        fobj = open(config_file_path, "w")
+        fobj.writelines(data)
+        fobj.close()
+        for child in musicframechild.winfo_children():
+            child.grid_forget()
+        loadConfig()
+
+    def editCmd(index, cmd, value):
+        global data, fobj, cmds
+        cmd_frame = cmd_frames[index]
+        controlType = cmd[3]
+        if value in ["Single","Hex","Pulse","Flash"]:
+            if value != controlType:
+                cmd[3] = value
+                cmd_frame[2].grid_forget()
+                if cmd_frame[3] != None:
+                    cmd_frame[3].grid_forget()
+                cmd_frame[4].grid_forget()
+                cmd_frame[5].grid_forget()
+                if value == "Single":
+                    cmd[4] = "Red"
+                    cmd[7] = "sendColourMusic(red)"
+                elif value == "Flash":
+                    cmd[4] = "Red"
+                    cmd[5] = "10"
+                    cmd[7] = "sendFlashMusic(red.10)"
+                elif value == "Pulse":
+                    cmd[4] = "Red"
+                    cmd[5] = "10"
+                    cmd[7] = "sendPulseMusic(red.10)"
+                elif value == "Hex":
+                    cmd[4] = "#FF0000"
+                    cmd[7] = "sendHexMusic(#FF0000)"
+                combo2, combo3, save_button, del_button = frameCreator(cmd_frame[0], index, cmd, value)
+                cmd_frame[2] = combo2
+                cmd_frame[3] = combo3
+                cmd_frame[4] = save_button
+                cmd_frame[5] = del_button  
+        else:
+            if controlType == "Single":
+                cmd[4] = value
+                cmd[7] = "sendColourMusic("+value.lower()+")"
+            elif controlType == "Flash":
+                if value.isnumeric():
+                    cmd[5] = value
+                    cmd[7] = "sendFlashMusic("+cmd[4].lower()+"."+value+")"
+                else:
+                    cmd[4] = value
+                    cmd[7] = "sendFlashMusic("+value.lower()+"."+cmd[5]+")"
+            elif controlType == "Pulse":
+                if value.isnumeric():
+                    cmd[5] = value
+                    cmd[7] = "sendPulseMusic("+cmd[4].lower()+"."+value+")"
+                else:
+                    cmd[4] = value
+                    cmd[7] = "sendPulseMusic("+value.lower()+"."+cmd[5]+")"
+            elif controlType == "Hex":
+                value = cmd_frame[2].get()
+                if value.startswith("#") and len(value) == 7:
+                    int(value[1:], 16)
+                    cmd[4] = value
+                    cmd[7] = "sendHexMusic("+value.lower()+")"
+                    root.focus_set()
+                    cmd_frame[4].configure(image=imgtk_save_success)
+                    root.after(1000, lambda: cmd_frame[4].configure(image=imgtk_save))
+                else:
+                    messagebox.showerror("Invalid Hex Colour","Please enter a valid Hex Colour.")
+                    return
+        cmds[index] = cmd[7]
+        data[index] = ','.join(cmd)
+        fobj = open(config_file_path, "w")
+        fobj.writelines(data)
+        fobj.close()
+
+    def addCmd():
+        global data, cmd_frames, prohibited_times
+        if position not in prohibited_times:
+            index = 0
+            for i in data:
+                ipos = int(i.split(",")[1])
+                if ipos > position:
+                    break
+                index += 1
+            data.insert(index, f"{index+1},{int(position)},{time.strftime("%M:%S", time.gmtime(position//1000))+"."+format_ms(position%1000)},Single,Red,0,0,0,sendColourMusic(red),\n")
+            for i in range(index, len(data)):
+                cmd = data[i].split(",")
+                cmd[0] = str(i+1)
+                data[i] = ','.join(cmd)
+            refreshCmds()
+        else:
+            messagebox.showerror("Duplicate Command","A command already exists in the configuration.")
+
     def link(unlink=False):
         global isLinked
         if not isLinked and unlink==False:
@@ -619,6 +850,8 @@ def main():
         else:
             isLinked = False
             link_button.configure(fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            if isConnected:
+                sendColourMusic("red")
 
     def seekBack():
         set_music_slider(-seekAmount) # type: ignore
@@ -628,7 +861,7 @@ def main():
 
     def seekAdjust(manual=False, invert=False):
         global seekAmount
-        seeks = [0.1, 0.5, 1, 2, 5, 10]
+        seeks = [0.1, 0.5, 1, 2, 5, 10, 30]
         index = seeks.index(seekAmount)
         if invert:
             index -= 1
@@ -636,11 +869,11 @@ def main():
                 index = 0
         else:
             index += 1
-            if index == 6:
+            if index == 7:
                 if manual:
                     index = 0
                 else:
-                    index = 5
+                    index = 6
         seekAmount = seeks[index]
         settings[13] = str(seekAmount) + "\n"
         writesettings()
@@ -746,7 +979,7 @@ def main():
 
     def updateTab():
         stopAlert()
-        if isPlaying:
+        if isLoaded:
             stop()
         tab = mainframe.get()
         macInput.configure(state="disabled")
@@ -766,8 +999,6 @@ def main():
                 pygame.mixer.music.load(settings[12][:-1])
                 pygame.mixer.music.play()
                 pygame.mixer.music.pause()
-            else:
-                clearload()
             mcontrolframe.grid(row=0,column=0,rowspan=2,columnspan=4,padx=10,pady=(5,0),sticky='nsew')
         else:
             if not isConnected:
@@ -841,7 +1072,7 @@ def main():
         f=open("Settings.txt","a+")
         f.seek(0)
         settings=f.readlines()
-        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1'],['Hex'],['Hex'],['Hex'],['Hex'],['Hex'],[],['0.1','0.5','1','2','5','10'],['0','1']]
+        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1'],['Hex'],['Hex'],['Hex'],['Hex'],['Hex'],[],['0.1','0.5','1','2','5','10','30'],['0','1']]
         #print(len(settings),len(check)) #For Debug Only
         #print(settings) #For Debug Only
         for i in range(len(check)):
@@ -880,7 +1111,8 @@ def main():
     x = (userwinx)//3
     y = (userwiny)//3
     root.geometry(f"750x420+{x}+{y}")
-    root.resizable(False,False)
+    root.minsize(750,420)
+    root.resizable(False,True)
 
     #Start Controller
     controller = BluetoothController(address, char_uuid)
@@ -924,11 +1156,13 @@ def main():
         image14 = Image.open(r".\Resources\link.png")
         image16 = Image.open(r".\Resources\add.png")
         image17 = Image.open(r".\Resources\folder.png")
+        image18 = Image.open(r".\Resources\save.png")
+        image15 = Image.open(r".\Resources\saveSuccess.png")
+        image19 = Image.open(r".\Resources\delete.png")
     except:
         tk.messagebox.showerror("Missing Resources","LightCraft could not find critical resources. The Resources folder may have been corrupted or deleted. Please re-install LightCraft from official sources.") # type: ignore #Missing Resources
         quit()
     imgtk1 = CTkImage(light_image=image1,size=(60,60))
-    imgtk10 = CTkImage(light_image=image1,size=(20,20))
     imgtk2 = CTkImage(light_image=image2,size=(25,25))
     imgtk3 = CTkImage(light_image=image3,size=(25,25))
     imgtk4 = CTkImage(light_image=image4,size=(25,25))
@@ -943,11 +1177,14 @@ def main():
     imgtk_add = CTkImage(light_image=image16,size=(24,24))
     imgtk_link = CTkImage(light_image=image14,size=(24,24))
     imgtk_folder = CTkImage(light_image=image17,size=(24,24))
+    imgtk_save = CTkImage(light_image=image18,size=(16,16))
+    imgtk_save_success = CTkImage(light_image=image15,size=(16,16))
+    imgtk_del = CTkImage(light_image=image19,size=(16,16))
 
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 1.7.3 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 2.7.3 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color=("#dbdbdb","#2b2b2b"), image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Basic"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
@@ -1088,34 +1325,38 @@ def main():
 
     #Music
     mainframe.tab("Music").grid_columnconfigure(0,weight=1)
+    mainframe.tab("Music").grid_rowconfigure(0,weight=1)
     mcontrolframe.grid_columnconfigure(1,weight=1)
     heading3 = CTkLabel(mcontrolframe, text="No Music Loaded", font=CTkFont(size=15))
     heading3.grid(row=0,column=1,columnspan=2,padx=10,pady=0,sticky='e')
     mcontrolsframe = CTkFrame(mcontrolframe, fg_color="transparent")
-    mcontrolsframe.grid(row=0,column=0,padx=6,pady=(7,11),sticky='w')
+    mcontrolsframe.grid(row=0,column=0,padx=6,pady=7,sticky='w')
     musicframe = CTkScrollableFrame(mainframe.tab("Music"), bg_color="transparent", fg_color="transparent")
     musicframe.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
+    musicframe.grid_columnconfigure(0,weight=1)
+    musicframe.grid_rowconfigure(0,weight=1)
     load_button = CTkButton(mcontrolsframe, image=imgtk_folder, text="", width=10, height=8, corner_radius=10, command=load)
     load_button.grid(row=0,column=0,padx=3)
-    link_button = CTkButton(mcontrolsframe, image=imgtk_link, text="", width=10, height=8, corner_radius=10, command=link, state="disabled")
+    link_button = CTkButton(mcontrolsframe, image=imgtk_link, text="", width=10, height=8, corner_radius=10, command=link, state="disabled",fg_color=("#2b6b8f","#0f4d67"))
     link_button.grid(row=0,column=1,padx=3)
-    add_button = CTkButton(mcontrolsframe, image=imgtk_add, text="", width=10, height=8, corner_radius=10, state="disabled")
+    add_button = CTkButton(mcontrolsframe, image=imgtk_add, text="", width=10, height=8, corner_radius=10, command=addCmd,state="disabled",fg_color=("#2b6b8f","#0f4d67"))
     add_button.grid(row=0,column=2,padx=3)
-    seek_button = CTkButton(mcontrolsframe, font=CTkFont(size=13), width=38, height=32, corner_radius=4, command=lambda: seekAdjust(manual=True), state="disabled")
+    seek_button = CTkButton(mcontrolsframe, text=settings[13][:-1]+"s", font=CTkFont(size=13), width=38, height=32, corner_radius=4, command=lambda: seekAdjust(manual=True), state="disabled",fg_color=("#2b6b8f","#0f4d67"))
     seek_button.grid(row=0,column=3,padx=(3,2))
-    stop_button = CTkButton(mcontrolsframe, image=imgtk_stop, text="", width=10, height=8, corner_radius=10, command=stop, state="disabled")
+    stop_button = CTkButton(mcontrolsframe, image=imgtk_stop, text="", width=10, height=8, corner_radius=10, command=stop, state="disabled",fg_color=("#2b6b8f","#0f4d67"))
     stop_button.grid(row=0,column=4,padx=3)
-    play_button = CTkButton(mcontrolsframe, image=imgtk_play, text="", width=10, height=8, corner_radius=10, command=play, state="disabled")
+    play_button = CTkButton(mcontrolsframe, image=imgtk_play, text="", width=10, height=8, corner_radius=10, command=play, state="disabled",fg_color=("#2b6b8f","#0f4d67"))
     play_button.grid(row=0,column=5,padx=3)
-    music_slider = CTkSlider(mcontrolframe, from_=0, to=100, orientation="horizontal", progress_color="white", border_width=3, height=12, command=lambda e: set_music_slider())
+    music_slider = CTkSlider(mcontrolframe, from_=0, to=100, orientation="horizontal", progress_color="white", border_width=3, height=12, command=lambda e: set_music_slider(), state="disabled")
     music_slider.grid(row=1,column=0,columnspan=8,padx=8,pady=(5,2),sticky='ew')
     music_slider.set(0)
     actual_time = CTkLabel(mcontrolframe, text="00:00.0", font=CTkFont(size=12), height=3)
-    actual_time.grid(row=2,column=0,padx=10,pady=0, sticky='w')
+    actual_time.grid(row=2,column=0,padx=10,pady=(4,0), sticky='w')
     total_time = CTkLabel(mcontrolframe, text="00:00.0", font=CTkFont(size=12), height=3)
-    total_time.grid(row=2,column=2,padx=10,pady=0, sticky='e')
+    total_time.grid(row=2,column=2,padx=10,pady=(4,0), sticky='e')
     musicframechild = CTkFrame(musicframe, fg_color="transparent")
     musicframechild.grid_columnconfigure(0,weight=1)
+    musicframechild.grid_rowconfigure(0,weight=1)
 
     if settings[4][:-1]=="1":
         root.after(20,connect)
@@ -1123,8 +1364,7 @@ def main():
         bindBasic()
     if settings[6][:-1]=="1" and os.path.exists(settings[12][:-1]):
         load(True)
-    else:
-        clearload()
+
     root.mainloop()
 
 
