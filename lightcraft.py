@@ -2,7 +2,8 @@
 #Made by Akash Samanta
 
 import math
-import asyncio, threading, os, time, webbrowser, re, subprocess, keyboard
+import asyncio, threading, os, time, webbrowser, re, subprocess, keyboard, cv2, bisect
+from vlc import MediaPlayer
 from bleak import BleakClient
 from PIL import Image
 from customtkinter import * # type: ignore
@@ -10,8 +11,8 @@ import tkinter as tk
 from tkinter import messagebox
 from CTkColorPicker import * # type: ignore
 from functools import wraps
-import pygame
 from lightcraft_cli import repeat, enableRepeat, disableRepeat
+from mutagen.mp3 import MP3
 
 root = CTk()
 address = "32:06:C2:00:0A:9E"
@@ -128,9 +129,6 @@ class BluetoothController:
 
 def main():
     global controller, loop_thread
-    pygame.mixer.init()
-
-    
 
     def debounce(wait):
         def decorator(fn):
@@ -493,7 +491,7 @@ def main():
 
     #Alert Functions
     def playAlert():
-        global interval
+        global interval, player
         if not isOn:
             togglePower()
         enableRepeat()
@@ -501,35 +499,49 @@ def main():
         pulseflash_var.set("red_pulse")
         match alert:
             case 0:
-                pygame.mixer.music.load(r".\Resources\italyAlert.mp3")
+                player = MediaPlayer(r".\Resources\italyAlert.mp3")
                 loop_thread1 = threading.Thread(target=lambda: asyncio.run(repeat(controller.client, char_uuid, '["0.3 red","0.3 pink"]', 100)))
                 loop_thread1.start()
             case 1:
-                pygame.mixer.music.load(r".\Resources\japanAlert.mp3")
+                player = MediaPlayer(r".\Resources\japanAlert.mp3")
                 interval = 0
                 sendPulse()
             case 2:
-                pygame.mixer.music.load(r".\Resources\franceAlert.mp3")
+                player = MediaPlayer(r".\Resources\franceAlert.mp3")
                 interval = 1
                 sendPulse()
             case 3:
-                pygame.mixer.music.load(r".\Resources\usaAlert.mp3")
+                player = MediaPlayer(r".\Resources\usaAlert.mp3")
                 interval = 6
                 sendPulse()
         intervalSlider.set(10-interval)
-        pygame.mixer.music.play()
+        player.play() # type: ignore
         alertButton.configure(text="Stop Alert", fg_color="#AA0000", hover_color="#880000", command=stopAlert)
 
     def stopAlert():
-        pygame.mixer.music.stop()
+        global player
+        if 'player' in globals() and player:
+            player.stop()
         disableRepeat()
         sendColourWB(255,0,0)
         alertButton.configure(text="Play Alert",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"), command=playAlert)
 
     #Music Functions
+    def getVLength(file_path):
+        try:
+            cap = cv2.VideoCapture(file_path)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            duration = frame_count / fps
+            cap.release()
+            return duration
+        except Exception as e:
+            print(f"Error getting video length: {e}")
+            return 0
+
     def clearload():
         load_button.configure(fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-        pygame.mixer.music.unload()
+        player_main.release() # type: ignore
         heading3.configure(text="No Music Loaded")
         link(True)
         play_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"))
@@ -544,11 +556,11 @@ def main():
         musicframechild.grid_forget()
 
     def load(autoload=False):
-        global isLoaded, music_length, position, config_file_path, data
+        global isLoaded, music_length, position, config_file_path, data, player_main
         for child in musicframechild.winfo_children():
             child.destroy()
         if not autoload:
-            music = filedialog.askopenfilename(filetypes=[("MP3 Files", "*.mp3")])
+            music = filedialog.askopenfilename(filetypes=[("Media Files", "*.mp3 *.mp4")])
             if music == "":
                 clearload()
                 isLoaded = False
@@ -580,7 +592,13 @@ def main():
         #Config Load Successful
         isLoaded = True
         musicframechild.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
-        music_length = pygame.mixer.Sound(music).get_length()
+        if music.endswith(".mp3"):
+            audio = MP3(music)
+            music_length = audio.info.length
+        elif music.endswith(".mp4"):
+            music_length = getVLength(music)
+        else:
+            music_length = 0
         load_button.configure(fg_color="green", hover_color="#005500")
         heading3.configure(text=music_name)
         music_slider.configure(state="normal")
@@ -591,53 +609,54 @@ def main():
         seek_button.configure(state="normal", text=str(seekAmount).rstrip('0').rstrip('.') + "s",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
         stop_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
         total_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+".0")
-        pygame.mixer.music.load(music)
-        pygame.mixer.music.play()
-        pygame.mixer.music.pause()
+        player_main = MediaPlayer(music)
         position = 0
         set_music_slider(0)
+
+    command_functions = {'sendColourMusic': sendColourMusic,'sendFlashMusic': sendFlashMusic,'sendPulseMusic': sendPulseMusic,'sendHexMusic': sendHexMusic,}
 
     def update_music_slider():
         global isPlaying, isUpdatingSlider, position, cmds
         if isPlaying and not isUpdatingSlider:
-            slider_value = (position / music_length / 1000) * 100
-            music_slider.set(slider_value)
-            position += 100
-            actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position//1000))+"."+format_ms(position%1000))
+            current_time = player_main.get_time() / 1000  # type: ignore
+            music_slider.set((current_time / music_length) * 100)
+            position = int(current_time * 1000)
+            actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position // 1000)) + "." + format_ms(position % 1000))
             if position >= music_length * 1000:
                 stop()
-            if isLinked and position in prohibited_times:
-                command_functions = {
-                    'sendColourMusic': sendColourMusic,
-                    'sendFlashMusic': sendFlashMusic,
-                    'sendPulseMusic': sendPulseMusic,
-                    'sendHexMusic': sendHexMusic,
-                }
-                cmd = cmds[prohibited_times.index(position)]
-                func_name, args = cmd.split('(')
-                args = args.rstrip(')').split('.')
 
-                if func_name in command_functions:
+            if isLinked and prohibited_times:
+                idx = bisect.bisect_left(prohibited_times, position)
+                closest_index = None
+
+                if idx > 0 and abs(prohibited_times[idx - 1] - position) <= 150:
+                    closest_index = idx - 1
+                elif idx < len(prohibited_times) and abs(prohibited_times[idx] - position) <= 150:
+                    closest_index = idx
+                
+                if closest_index is not None:
+                    cmd = cmds[closest_index]
+                    func_name, args = cmd.split('(')
+                    args = args.rstrip(')').split('.')
                     command_functions[func_name](*args)
+            
             root.after(100, update_music_slider)
 
-    @debounce(0.1)
     def set_music_slider(offset=0):
-        global isUpdatingSlider, position
+        global isUpdatingSlider, position, player_main
         isUpdatingSlider = True
         if isLinked:
             sendColourMusic("red")
         if offset == 0:
             new_pos = math.floor(music_slider.get() / 100 * music_length * 10) * 100
-            music_slider.set((new_pos / music_length / 1000) * 100)
         else:
             new_pos = position + (offset * 1000)
             if new_pos < 0:
                 new_pos = 0
             elif new_pos > (music_length * 1000):
                 new_pos = music_length * 1000
-        pygame.mixer.music.set_pos(new_pos/1000)
-        music_slider.set((new_pos / music_length / 1000) * 100)
+        if isPlaying:
+            player_main.set_time(int(new_pos)) # type: ignore
         position = int(new_pos)
         actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position/1000))+"."+format_ms(position%1000))
         isUpdatingSlider = False
@@ -653,23 +672,27 @@ def main():
         if not isPlaying:
             isPlaying = True
             play_button.configure(image=imgtk_pause)
-            pygame.mixer.music.unpause()
+            player_main.set_time(int(position)) # type: ignore
+            player_main.play() # type: ignore
             update_music_slider()
         else:
             isPlaying = False
+            if isLinked:
+                sendColourMusic("red")
             play_button.configure(image=imgtk_play)
-            pygame.mixer.music.pause()
+            player_main.pause() # type: ignore
 
     def stop():
-        global isPlaying, position
+        global isPlaying, position, player_main
         position = 0
         actual_time.configure(text="00:00.0")
         music_slider.set(0)
+        if isLinked:
+            sendColourMusic("red")
         isPlaying = False
         play_button.configure(image=imgtk_play)
-        pygame.mixer.music.stop()
-        pygame.mixer.music.play()
-        pygame.mixer.music.pause()
+        if player_main:
+            player_main.stop()
 
     def loadConfig():
         global cmd_frames, prohibited_times, fobj, data, cmds
@@ -825,7 +848,7 @@ def main():
 
     def addCmd():
         global data, cmd_frames, prohibited_times
-        if position not in prohibited_times:
+        if not any(abs(position - t) <= 150 for t in prohibited_times):
             index = 0
             for i in data:
                 ipos = int(i.split(",")[1])
@@ -839,7 +862,7 @@ def main():
                 data[i] = ','.join(cmd)
             refreshCmds()
         else:
-            messagebox.showerror("Duplicate Command","A command already exists in the configuration.")
+            messagebox.showerror("Duplicate Command","A nearby command already exists in the configuration.")
 
     def link(unlink=False):
         global isLinked
@@ -969,14 +992,15 @@ def main():
             if tab=="Basic":
                 mainframe.set("Alert")
             elif tab=="Alert":
-                mainframe.set("Music")
-            elif tab=="Music":
+                mainframe.set("Player")
+            elif tab=="Player":
                 mainframe.set("Settings")
             else:
                 mainframe.set("Basic")
             updateTab()
 
     def updateTab():
+        global isLoaded, player_main
         stopAlert()
         if isLoaded:
             stop()
@@ -987,7 +1011,7 @@ def main():
             bindBasic()
         elif tab=="Alert":
             bindAlert()
-        elif tab=="Music":
+        elif tab=="Player":
             bindMusic()
             connect_button.grid_forget()
             power_button.grid_forget()
@@ -995,16 +1019,14 @@ def main():
             heading1.grid_forget()
             heading2.grid_forget()
             if isLoaded:
-                pygame.mixer.music.load(settings[12][:-1])
-                pygame.mixer.music.play()
-                pygame.mixer.music.pause()
+                player_main = MediaPlayer(settings[12][:-1])
             mcontrolframe.grid(row=0,column=0,rowspan=2,columnspan=4,padx=10,pady=(5,0),sticky='nsew')
         else:
             if not isConnected:
                 macInput.configure(state="normal")
                 uuidInput.configure(state="normal")
             bindSettings()
-        if tab!="Music":
+        if tab!="Player":
             connect_button.grid(row=0,column=2,rowspan=2,padx=0, sticky='e')
             power_button.grid(row=0,column=3,rowspan=2,padx=10, sticky='e')
             headinglogo.grid(row=0,column=0,rowspan=2,pady=10, sticky='w')
@@ -1122,7 +1144,7 @@ def main():
     mainframe=CTkTabview(root, command=updateTab)
     mainframe.add("Basic")
     mainframe.add("Alert")
-    mainframe.add("Music")
+    mainframe.add("Player")
     mainframe.add("Settings")
     settingschild=CTkScrollableFrame(mainframe.tab("Settings"), fg_color="transparent")
     sgframe=CTkFrame(mainframe.tab("Basic"), fg_color="transparent")
@@ -1183,7 +1205,7 @@ def main():
     #Basic Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 2.7.3 (Beta)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 2.7.4 (Beta)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color=("#dbdbdb","#2b2b2b"), image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Basic"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
@@ -1269,7 +1291,7 @@ def main():
     CTkLabel(settingschild, text="Auto Connect").grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(settingschild, text="Enable Keyboard Shortcuts").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(settingschild, text="Remember Loaded Files").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Music Configurations").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Media Configurations").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(settingschild, text="Edit Operation Codes (Advanced)").grid(row=9,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(settingschild, text="Reset Settings").grid(row=8,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(settingschild, text="User Manual").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
@@ -1323,14 +1345,14 @@ def main():
     alertButton.grid(row=2,column=0,padx=0,pady=(10,0))
 
     #Music
-    mainframe.tab("Music").grid_columnconfigure(0,weight=1)
-    mainframe.tab("Music").grid_rowconfigure(0,weight=1)
+    mainframe.tab("Player").grid_columnconfigure(0,weight=1)
+    mainframe.tab("Player").grid_rowconfigure(0,weight=1)
     mcontrolframe.grid_columnconfigure(1,weight=1)
     heading3 = CTkLabel(mcontrolframe, text="No Music Loaded", font=CTkFont(size=15))
     heading3.grid(row=0,column=1,columnspan=2,padx=10,pady=0,sticky='e')
     mcontrolsframe = CTkFrame(mcontrolframe, fg_color="transparent")
     mcontrolsframe.grid(row=0,column=0,padx=6,pady=7,sticky='w')
-    musicframe = CTkScrollableFrame(mainframe.tab("Music"), bg_color="transparent", fg_color="transparent")
+    musicframe = CTkScrollableFrame(mainframe.tab("Player"), bg_color="transparent", fg_color="transparent")
     musicframe.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
     musicframe.grid_columnconfigure(0,weight=1)
     musicframe.grid_rowconfigure(0,weight=1)

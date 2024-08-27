@@ -11,14 +11,14 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 - Pulsing and Flashing Control
 - Interval Timing Control
 - Alert SOS (Sounds from Hitman 3)
-- Music Player with LED Sync
+- Media Player with LED Sync
 - Keyboard Shortcuts
 - Settings
 - Dark Mode
 
 ## Under Development
 Some of these features are available and ready to use in the CLI Version. Run the `lightcraft_cli.py` file.
-- Beat Function in Music Player
+- Repeat Function in Media Player
 - Custom Operation Codes
 - Multi-Language Support (Planned)
 
@@ -30,7 +30,7 @@ There is no available release as of now but you may choose to run the source cod
 - CTkColorPicker [Get it here](https://github.com/Akascape/CTkColorPicker)
 - bleak [Get it here](https://github.com/hbldh/bleak)
 - pillow
-- pygame
+- python-vlc
 - keyboard
   
 Install via the `requirements.txt`. I highly recommend you create a virtual environment (like conda).
@@ -39,7 +39,7 @@ pip install -r requirements.txt
 ```
 or simply paste the following in terminal
 ```
-pip install customtkinter, CTkColorPicker, bleak, pillow, pygame, keyboard
+pip install customtkinter, CTkColorPicker, bleak, pillow, python-vlc, keyboard
 ```
 Clone this Repository by
 ```

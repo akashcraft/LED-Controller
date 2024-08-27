@@ -2,5 +2,5 @@ customtkinter
 CTkColorPicker
 bleak
 pillow
-pygame
+python-vlc
 keyboard
