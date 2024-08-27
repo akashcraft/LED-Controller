@@ -17,10 +17,7 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 - Dark Mode
 
 ## Under Development
-Some of these features are available and ready to use in the CLI Version. Run the `lightcraft_cli.py` file.
-- Repeat Function in Media Player
 - Custom Operation Codes
-- Multi-Language Support (Planned)
 
 ## Installation
 There is no available release as of now but you may choose to run the source code yourself, Run the `lightcraft.py` file. Please read important notes below. Here are the requirements:
@@ -67,7 +64,7 @@ LightCraft stores its configuration data in the `Settings.txt` which must be loc
 
 
 ## User Manual
-Will be available after first stable release.
+Will be available under Wiki after first stable release.
 
 ## Who can use this?
 You are free to download and edit the source code files however you like. But, LightCraft is not to be resold for any commercial purpose(s).
