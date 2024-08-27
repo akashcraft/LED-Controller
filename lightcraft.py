@@ -595,14 +595,15 @@ def main():
         pygame.mixer.music.play()
         pygame.mixer.music.pause()
         position = 0
+        set_music_slider(0)
 
     def update_music_slider():
         global isPlaying, isUpdatingSlider, position, cmds
         if isPlaying and not isUpdatingSlider:
             slider_value = (position / music_length / 1000) * 100
             music_slider.set(slider_value)
-            actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position//1000))+"."+format_ms(position%1000))
             position += 100
+            actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position//1000))+"."+format_ms(position%1000))
             if position >= music_length * 1000:
                 stop()
             if isLinked and position in prohibited_times:
@@ -620,27 +621,25 @@ def main():
                     command_functions[func_name](*args)
             root.after(100, update_music_slider)
 
+    @debounce(0.1)
     def set_music_slider(offset=0):
         global isUpdatingSlider, position
         isUpdatingSlider = True
         if isLinked:
             sendColourMusic("red")
         if offset == 0:
-            new_pos = (music_slider.get() / 100) * music_length
+            new_pos = math.floor(music_slider.get() / 100 * music_length * 10) * 100
+            music_slider.set((new_pos / music_length / 1000) * 100)
         else:
-            new_pos = position / 1000
-            if new_pos + offset < 0:
+            new_pos = position + (offset * 1000)
+            if new_pos < 0:
                 new_pos = 0
-            elif new_pos + offset > music_length:
-                new_pos = music_length
-            else:
-                new_pos += offset
-        pygame.mixer.music.set_pos(new_pos)
-        position = new_pos * 1000
-        if not isPlaying:
-            slider_value = (position / music_length / 1000) * 100
-            music_slider.set(slider_value)
-            actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position/1000))+"."+format_ms(position%1000))
+            elif new_pos > (music_length * 1000):
+                new_pos = music_length * 1000
+        pygame.mixer.music.set_pos(new_pos/1000)
+        music_slider.set((new_pos / music_length / 1000) * 100)
+        position = int(new_pos)
+        actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position/1000))+"."+format_ms(position%1000))
         isUpdatingSlider = False
 
     def format_ms(ms):
@@ -833,7 +832,7 @@ def main():
                 if ipos > position:
                     break
                 index += 1
-            data.insert(index, f"{index+1},{int(position)},{time.strftime("%M:%S", time.gmtime(position//1000))+"."+format_ms(position%1000)},Single,Red,0,0,0,sendColourMusic(red),\n")
+            data.insert(index, f"{index+1},{int(position)},{time.strftime("%M:%S", time.gmtime(position//1000))+"."+format_ms(position%1000)},Single,Red,0,0,sendColourMusic(red),\n")
             for i in range(index, len(data)):
                 cmd = data[i].split(",")
                 cmd[0] = str(i+1)
