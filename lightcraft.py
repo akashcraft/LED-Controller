@@ -683,7 +683,7 @@ def main():
 
             if isLinked and next_index != -1:
                 try:
-                    if abs(position-prohibited_times[next_index]) < 100:
+                    if abs(position-prohibited_times[next_index]) < 300:
                         cmd = cmds[next_index]
                         func_name, args_str = cmd[:-1].split('(')
                         args = args_str.split('.') if args_str else []
@@ -733,8 +733,14 @@ def main():
             return str(ms)[:1]
 
     def play():
-        global isPlaying, isRepeating
+        global isPlaying, isRepeating, next_index
         isRepeating = False
+        for i in range(len(prohibited_times)):
+            if position <= prohibited_times[i]:
+                next_index = i
+                break
+        else:
+            next_index = -1
         if not isPlaying:
             isPlaying = True
             play_button.configure(image=imgtk_pause)
