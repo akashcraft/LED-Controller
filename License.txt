@@ -1,0 +1,9 @@
+LightCraft Version 2.8.7
+Copyright AkashCraft 2024
+https://github.com/akashcraft/LED-Controller
+
+What's New?
+- First Stable Release
+
+Report any bugs using GitHub Issues. User Manual available online.
+LightCraft is not to be repackaged or resold for any commercial purpose(s).
