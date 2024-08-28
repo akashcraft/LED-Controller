@@ -1291,8 +1291,10 @@ def main():
                     if check[i]==['Hex']:
                         #print(settings[i],check[i]) #For Debug Only
                         if settings[i][:-1][0]!="#" or len(settings[i][:-1])!=7:
+                            messagebox.showerror("Unable to Load Settings","The settings file seems corrupted, possibly due to file tampering. LightCraft will attempt to restore default settings.")
                             resetsettings2()
                     elif settings[i][:-1] not in check[i]:
+                        messagebox.showerror("Unable to Load Settings","The settings file seems corrupted, possibly due to file tampering. LightCraft will attempt to restore default settings.")
                         #print(settings[i][:-1],"and",check[i]) #For Debug Only
                         resetsettings2()
             except:
