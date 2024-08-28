@@ -623,51 +623,58 @@ def main():
                 return
             else:
                 clearload()
-                if settings[6][:-1] == "1":
-                    settings[12] = music + "\n"
-                    writesettings()    
         else:
             music = settings[12][:-1]
         for child in musicframechild.winfo_children():
             child.destroy()
-        #Load Successful
-        config_dir = os.path.join(os.getcwd(), "Configurations")
-        if not os.path.exists(config_dir):
-            os.makedirs(config_dir)
-        
-        music_name = os.path.basename(music).split(".")[0]
-        config_file_path = os.path.join(config_dir, f"{music_name} LightCraft.txt")
-        if not os.path.exists(config_file_path):
-            fobj = open(config_file_path, "w")
+        try:
+            #Load Successful
+            config_dir = os.path.join(os.getcwd(), "Configurations")
+            if not os.path.exists(config_dir):
+                os.makedirs(config_dir)
+            
+            music_name = os.path.basename(music).split(".")[0]
+            config_file_path = os.path.join(config_dir, f"{music_name} LightCraft.txt")
+            if not os.path.exists(config_file_path):
+                fobj = open(config_file_path, "w")
+                fobj.close()
+            fobj = open(config_file_path, "r")
+            data = fobj.readlines()
             fobj.close()
-        fobj = open(config_file_path, "r")
-        data = fobj.readlines()
-        fobj.close()
 
-        #Config Load Successful
-        isLoaded = True
-        musicframechild.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
-        if music.endswith(".mp3"):
-            audio = MP3(music)
-            music_length = audio.info.length
-        elif music.endswith(".mp4"):
-            music_length = getVLength(music)
-        else:
-            music_length = 0
-        loadConfig()
-        load_button.configure(fg_color="green", hover_color="#005500")
-        heading3.configure(text=music_name)
-        music_slider.configure(state="normal")
-        play_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-        if isConnected:
-            link_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-        add_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-        seek_button.configure(state="normal", text=str(seekAmount).rstrip('0').rstrip('.') + "s",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-        stop_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-        total_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+".0")
-        player_main = MediaPlayer(music)
-        position = 0
-        next_index = 0
+            #Config Load Successful
+            isLoaded = True
+            musicframechild.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
+            if music.endswith(".mp3"):
+                audio = MP3(music)
+                music_length = audio.info.length
+            elif music.endswith(".mp4"):
+                music_length = getVLength(music)
+            else:
+                music_length = 0
+            loadConfig()
+            load_button.configure(fg_color="green", hover_color="#005500")
+            heading3.configure(text=music_name)
+            music_slider.configure(state="normal")
+            play_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            if isConnected:
+                link_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            add_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            seek_button.configure(state="normal", text=str(seekAmount).rstrip('0').rstrip('.') + "s",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            stop_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            total_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+".0")
+            player_main = MediaPlayer(music)
+            position = 0
+            next_index = 0
+            if settings[6][:-1] == "1":
+                settings[12] = music + "\n"
+                writesettings()    
+        except:
+            #Load Failed
+            clearload()
+
+            isLoaded = False
+            messagebox.showerror("Unable to Load Media","LightCraft was unable to load the selected media. Please make sure that the file is not corrupted and that it is a valid media file.")
 
     command_functions = {'sendColourMusic': sendColourMusic,'sendFlashMusic': sendFlashMusic,'sendPulseMusic': sendPulseMusic,'sendHexMusic': sendHexMusic,'sendRepeatMusic':sendRepeatMusic}
 
