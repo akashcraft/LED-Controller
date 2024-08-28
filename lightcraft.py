@@ -30,6 +30,11 @@ isUpdatingSlider = False
 seekAmount = 0.5
 isRepeating = False
 repeatCmds, repeatCmdsChild = [],[]
+defaultColour = "red"
+
+#Custom Configuration
+trailing_flash = leading_flash = trailing_pulse = leading_pulse = trailing_on = leading_on = trailing_off = leading_off =  main_on = main_off = 0
+trailing_single = leading_single = order_single = []
 
 validColours = {
     'red': [255, 0, 0],
@@ -151,7 +156,7 @@ def main():
         if isConnected:
             isConnected = False
             link_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"),hover_color=("#2b6b8f","#0f4d67"))
-            connect_button.configure(text="Connect", state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            connect_button.configure(image=None,text="Connect", state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             radio_button_1.configure(state="disabled")
             radio_button_2.configure(state="disabled")
             radio_button_3.configure(state="disabled")
@@ -166,7 +171,7 @@ def main():
             disconnect()
         else:
             future = controller.run_coroutine(controller.connect())
-            connect_button.configure(text="Connecting", state="disabled",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+            connect_button.configure(image=None,text="Connecting", state="disabled",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             macInput.configure(state="disabled")
             macInputButton.configure(state="disabled")
             uuidInput.configure(state="disabled")
@@ -179,9 +184,11 @@ def main():
         if future.done():
             if controller.connected:
                 isConnected = True
-                connect_button.configure(text="Connected", fg_color="green", hover_color="#005500", state="normal")
+                connect_button.configure(image=imgtk_bluetooth,text="Connected", fg_color="green", hover_color="#005500", state="normal")
                 if isLoaded:
                     link_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+                if settings[4][:-1] == "1":
+                    togglePower()
                 radio_button_1.configure(state="normal")
                 radio_button_2.configure(state="normal")
                 radio_button_3.configure(state="normal")
@@ -194,7 +201,7 @@ def main():
                 uuidInputButton.configure(state="disabled")
                 resetButton.configure(state="disabled")
             else:
-                connect_button.configure(text="Reconnect", fg_color="#AA0000", hover_color="#880000", state="normal")
+                connect_button.configure(image=None,text="Reconnect", fg_color="#AA0000", hover_color="#880000", state="normal")
                 messagebox.showerror("Connection Failure", "LightCraft failed to connect with your LED Strips. Please make sure that your Bluetooth is turned on and that your LED Strips are not bonded with another device. Verify the MAC Address in Settings.")
                 macInput.configure(state="normal")
                 macInputButton.configure(state="normal")
@@ -212,11 +219,11 @@ def main():
         if not isOn:
             isOn = True
             power_button.configure(image=imgtk2)
-            data = bytearray([0xcc,0x23,0x33])
+            data = bytearray([trailing_on,main_on,leading_on])
         else:
             isOn = False
             power_button.configure(image=imgtk3)
-            data = bytearray([0xcc,0x24,0x33])
+            data = bytearray([trailing_off,main_off,leading_off])
         controller.run_coroutine(controller.sendCmd(data))
 
     #Commands
@@ -235,8 +242,8 @@ def main():
         if sliderColour in ["all","rgb"]:
             sliderColour = "white"
         intervalSlider.configure(progress_color=sliderColour)
-        r,g,b = colourToRGB[sliderColour]
-        colorpicker.update_colors(r,g,b)
+        colorpicker.slider.configure(progress_color=sliderColour)
+        colorpicker.label.configure(fg_color=sliderColour)
 
     def setBrightness(isUp):
         curr_value = colorpicker.slider.get()
@@ -267,9 +274,15 @@ def main():
 
     @debounce(0.1)
     def sendHex(data):
+        global trailing_single, leading_single, order_single
         intervalSlider.configure(progress_color=data)
         data = data[1:]
-        data = bytearray([0x56, int(data[0:2], 16), int(data[2:4], 16), int(data[4:6], 16), 0x00, 0xf0, 0xaa])
+        r = int(data[0:2], 16)
+        g = int(data[2:4], 16)
+        b = int(data[4:6], 16)
+        color_map = {'r': r, 'g': g, 'b': b}
+        rearranged_values = [color_map[color.lower()] for color in order_single]
+        data = bytearray(trailing_single + rearranged_values + leading_single)
         controller.run_coroutine(controller.sendCmd(data))
     
     def sendHexMusic(data):
@@ -357,11 +370,11 @@ def main():
         isPulsing = True
         isFlashing = False
         if isSet==False:
-            data = bytearray([0xbb,validPulseCode[pulseflash_var.get()],int(interval),0x44])
+            data = bytearray([trailing_pulse,validPulseCode[pulseflash_var.get()],int(interval),leading_pulse])
             linkColour = "unset"
             sliderColourFun(pulseflash_var.get().split("_")[0]) 
         else:
-            data = bytearray([0xbb,validPulseCode[linkColour+"_pulse"],int(interval),0x44])
+            data = bytearray([trailing_pulse,validPulseCode[linkColour+"_pulse"],int(interval),leading_pulse])
         controller.run_coroutine(controller.sendCmd(data))
 
     def sendPulseMusic(colour, freq):
@@ -373,7 +386,7 @@ def main():
             colour = "gb"
         elif colour == "red green":
             colour = "rg"
-        data = bytearray([0xbb,validPulseCode[colour+"_pulse"],10-int(freq),0x44])
+        data = bytearray([trailing_pulse,validPulseCode[colour+"_pulse"],10-int(freq),leading_pulse])
         controller.run_coroutine(controller.sendCmd(data))
 
     @debounce(0.1)
@@ -382,17 +395,17 @@ def main():
         isPulsing = False
         isFlashing = True
         if isSet==False:
-            data = bytearray([0xbb,validFlashCode[pulseflash_var.get()],int(interval),0x44])
+            data = bytearray([trailing_flash,validFlashCode[pulseflash_var.get()],int(interval),leading_flash])
             linkColour = "unset"
             sliderColourFun(pulseflash_var.get().split("_")[0])
         else:
-            data = bytearray([0xbb,validFlashCode[linkColour+"_flash"],int(interval),0x44])
+            data = bytearray([trailing_flash,validFlashCode[linkColour+"_flash"],int(interval),leading_flash])
         controller.run_coroutine(controller.sendCmd(data))
 
     def sendFlashMusic(colour, freq):
         if colour == "rainbow":
             colour = "all"
-        data = bytearray([0xbb,validFlashCode[colour+"_flash"],10-int(freq),0x44])
+        data = bytearray([trailing_flash,validFlashCode[colour+"_flash"],10-int(freq),leading_flash])
         controller.run_coroutine(controller.sendCmd(data))
 
     @debounce(0.1)
@@ -509,6 +522,12 @@ def main():
             os.makedirs(config_dir)
         os.startfile(config_dir)
     
+    def updateDefaultColour(value):
+        global defaultColour
+        defaultColour = defaultColourVar.get().lower()
+        settings[15] = defaultColourVar.get() + "\n"
+        writesettings()
+
     def openManual():
         webbrowser.open(r"www.github.com/akashcraft/LED-Controller")
     
@@ -552,7 +571,7 @@ def main():
         if 'player' in globals() and player:
             player.stop()
         disableRepeat()
-        sendColourWB(255,0,0)
+        sendColourMusic(defaultColour)
         alertButton.configure(text="Play Alert",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"), command=playAlert)
 
     #Music Functions
@@ -678,7 +697,7 @@ def main():
         isRepeating = False
         isUpdatingSlider = True
         if isLinked:
-            sendColourMusic("red")
+            sendColourMusic(defaultColour)
         if offset == 0:
             new_pos = math.floor(music_slider.get() / 100 * music_length * 10) * 100
         else:
@@ -713,7 +732,7 @@ def main():
         else:
             isPlaying = False
             if isLinked:
-                sendColourMusic("red")
+                sendColourMusic(defaultColour)
             play_button.configure(image=imgtk_play)
             player_main.pause() # type: ignore
 
@@ -724,7 +743,7 @@ def main():
         actual_time.configure(text="00:00.0")
         music_slider.set(0)
         if isLinked:
-            sendColourMusic("red")
+            sendColourMusic(defaultColour)
         isPlaying = False
         play_button.configure(image=imgtk_play)
         if player_main:
@@ -740,7 +759,7 @@ def main():
             prohibited_times.append(int(cmd[1]))
             newFrame = CTkFrame(musicframechild, corner_radius=5, fg_color=("#ebebeb","#515151"))
             newFrame.grid_columnconfigure(6, weight=1)
-            newFrame.grid(row=index,column=0,padx=(0,5),pady=3, sticky='ew')
+            newFrame.grid(row=index,column=0,padx=(0,5),pady=1, sticky='ew')
             label1 = CTkLabel(newFrame, text=cmd[0], font=CTkFont(size=13), height=5)
             label1.grid(row=0,column=0,padx=(10,0),pady=5, sticky='w')
             label2 = CTkLabel(newFrame, text=cmd[2], font=CTkFont(size=13), height=5)
@@ -774,7 +793,7 @@ def main():
             cmd_frames.append([newFrame, combo1, combo2, combo3, save_button, del_button, copy_button, label1])
         for i in range(len(repeatCmdsChild)):
             cmd_frames[i][1].configure(values=["Single","Hex","RGB","Pulse","Flash"])
-            cmd_frames[i][5].configure(state="disabled")
+            cmd_frames[i][5].configure(state="disabled", image=imgtk_del_no)
             cmd_frames[i][0].configure(fg_color=("#c8c8c8","#3a3a3a"))
 
     def frameCreator(newFrame, index, cmd, controlType):
@@ -878,8 +897,16 @@ def main():
                     cmd[7] = "sendHexMusic(#FF0000)"
                 elif value == "Repeat":
                     cmd[4] = "1-3"
-                    cmd[7] = "sendRepeatMudic(#1-3)"
+                    cmd[7] = "sendRepeatMusic(1-3)"
                     repeatCmds.append(index)
+                    cmd_frame[0].configure(fg_color=("#c8c8c8","#3a3a3a"))
+                    root.focus_set()
+                    for i in range(0,3):
+                        cmd_frames[i][1].configure(values=["Single","Hex","RGB","Pulse","Flash"])
+                        cmd_frames[i][5].configure(state="disabled",image=imgtk_del_no)
+                        cmd_frames[i][0].configure(fg_color=("#c8c8c8","#3a3a3a"))
+                        if i not in repeatCmdsChild:
+                            repeatCmdsChild.append(i)
                 combo2, combo3, save_button, del_button, copy_button = frameCreator(cmd_frame[0], index, cmd, value)
                 cmd_frame[2] = combo2
                 cmd_frame[3] = combo3
@@ -945,8 +972,9 @@ def main():
                     messagebox.showerror("Invalid Range","Please enter a valid range. It must be two numbers separated by a hyphen. For example, 1-9. The first number cannot exceed the second number and the second number cannot exceed the total number of commands excluding Repeat commands.")
                     cmd_frame[2].focus_set()
                     return
-                for i in range(start, end+1):
+                for i in range(start-1, end):
                     if i in repeatCmds:
+                        print(i, repeatCmds,"!!")
                         cmd_frame[4].configure(image=imgtk_save_fail)
                         root.after(1000, lambda: cmd_frame[4].configure(image=imgtk_save))
                         messagebox.showerror("Nested Repeats","You cannot set a range that has another Repeat command within it.")
@@ -958,11 +986,12 @@ def main():
                 root.focus_set()
                 cmd_frame[4].configure(image=imgtk_save_success)
                 root.after(1000, lambda: cmd_frame[4].configure(image=imgtk_save))
-                repeatCmds.append(index)
                 for i in range(start-1,end):
                     cmd_frames[i][1].configure(values=["Single","Hex","RGB","Pulse","Flash"])
-                    cmd_frames[i][5].configure(state="disabled")
+                    cmd_frames[i][5].configure(state="disabled",image=imgtk_del_no)
                     cmd_frames[i][0].configure(fg_color=("#c8c8c8","#3a3a3a"))
+                    if i not in repeatCmdsChild:
+                        repeatCmdsChild.append(i)
         cmds[index] = cmd[7]
         data[index] = ','.join(cmd)
         fobj = open(config_file_path, "w")
@@ -1002,7 +1031,7 @@ def main():
             isLinked = False
             link_button.configure(fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             if isConnected:
-                sendColourMusic("red")
+                sendColourMusic(defaultColour)
 
     def seekBack():
         set_music_slider(-seekAmount) # type: ignore
@@ -1118,14 +1147,14 @@ def main():
     def nextTab():
         if settings[5][:-1]=="1":
             tab = mainframe.get()
-            if tab=="Basic":
+            if tab=="Remote":
                 mainframe.set("Alert")
             elif tab=="Alert":
                 mainframe.set("Player")
             elif tab=="Player":
                 mainframe.set("Settings")
             else:
-                mainframe.set("Basic")
+                mainframe.set("Remote")
             updateTab()
 
     def updateTab():
@@ -1136,7 +1165,7 @@ def main():
         tab = mainframe.get()
         macInput.configure(state="disabled")
         uuidInput.configure(state="disabled")
-        if tab=="Basic":
+        if tab=="Remote":
             bindBasic()
         elif tab=="Alert":
             bindAlert()
@@ -1170,7 +1199,7 @@ def main():
         except PermissionError:
             messagebox.showerror("Administrator Privileges Needed","Because of the nature of this LightCraft install, you will need to launch as administrator. To prevent this behaviour, please install LightCraft again on a user directory.")
             quit()
-        f.write("LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n32:06:C2:00:0A:9E\nFFD9\n0\n1\n1\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\nSave\n0.5\n1\n")
+        f.write("LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n32:06:C2:00:0A:9E\nFFD9\n0\n1\n1\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\nSave\n5\n1\nRed\n\nCustom Operation Codes\nEdit the following values which correspond to the data packet being sent to the LED. Useful for different LED Models. NO SPACES. Must end with comma.\n\nFlash\ntrailing,bb,\nrgb_flash,62,\nall_flash,38,\nwhite_flash,37,\npurple_flash,36,\ncyan_flash,35,\nyellow_flash,34,\nblue_flash,33,\ngreen_flash,32,\nred_flash,31,\neyesore_flash,30,\nleading,44,\n\nPulse\ntrailing,BB,\ngb_pulse,2F,\nrb_pulse,2E,\nrg_pulse,2D,\nwhite_pulse,2C,\npurple_pulse,2B,\ncyan_pulse,2A,\nyellow_pulse,29,\nblue_pulse,28,\ngreen_pulse,27,\nred_pulse,26,\nrgb_pulse,61,\nall_pulse,25,\ntrailing,44,\n\nOn\ntrailing_code,CC,\nmain,23,\nleading,33,\n\nOff\ntrailing_code,CC,\nmain,24,\nleading,33,\n\nSingle\ntrailing,56,\norder,r,g,b,\nleading,00,F0,AA,\n")
         f.close()
 
     #Quit or Relaunch Application
@@ -1193,8 +1222,12 @@ def main():
 
     #Normal Reset from Application
     def resetsettings():
+        global isLoaded
         ans=messagebox.askyesno("Reset Settings","You will lose any custom operation codes that you have defined. Are you sure you want to reset settings?")
         if ans:
+            if isLoaded:
+                clearload()
+            isLoaded = False
             autoCSwitch.deselect()
             keyBindSwitch.select()
             loadedSwitch.select()
@@ -1213,17 +1246,16 @@ def main():
 
     #Settings Corruption Reset
     def resetsettings2():
-        messagebox.showerror("Unable to Load Settings","The settings file seems corrupted, possibly due to file tampering. LightCraft will attempt to restore default settings.")
         createsettings()
         applysettings()
 
     #Boot and apply settings
     def applysettings():
-        global settings, address, char_uuid, seekAmount, isHidden
+        global settings, address, char_uuid, seekAmount, defaultColour, validFlashCode, validPulseCode, leading_flash, trailing_flash, leading_pulse, trailing_pulse, trailing_off, leading_off, trailing_on, leading_on, trailing_single, leading_single, main_on, main_off, order_single
         f=open("Settings.txt","a+")
         f.seek(0)
         settings=f.readlines()
-        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1'],['Hex'],['Hex'],['Hex'],['Hex'],['Hex'],[],['0.1','0.5','1','2','5','10','30'],['0','1']]
+        check=[['LightCraft Settings - Any corruption may lead to configuration loss'],['Made by Akash Samanta'],[],[],['0','1'],['0','1'],['0','1'],['Hex'],['Hex'],['Hex'],['Hex'],['Hex'],[],['0.1','0.5','1','2','5','10','30'],['0','1'],[color.capitalize() for color in validColours.keys()],[],['Custom Operation Codes'],[],[],['Flash'],[],[],[],[],[],[],[],[],[],[],[],[],[],['Pulse'],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],['On'],[],[],[],[],['Off'],[],[],[],[],['Single'],[],[],[]]
         #print(len(settings),len(check)) #For Debug Only
         #print(settings) #For Debug Only
         for i in range(len(check)):
@@ -1237,11 +1269,56 @@ def main():
                         #print(settings[i][:-1],"and",check[i]) #For Debug Only
                         resetsettings2()
             except:
+                messagebox.showerror("Unable to Load Settings","The settings file seems corrupted, possibly due to file tampering. LightCraft will attempt to restore default settings.")
                 #print("FAIL") #For Debug Only
                 resetsettings2()
+        try:
+            trailing_flash = int(settings[21].split(",")[1], 16)
+            validFlashCode = {
+                'rgb_flash': int(settings[22].split(",")[1], 16),
+                'all_flash': int(settings[23].split(",")[1], 16),
+                'white_flash': int(settings[24].split(",")[1], 16),
+                'purple_flash': int(settings[25].split(",")[1], 16),
+                'cyan_flash': int(settings[26].split(",")[1], 16),
+                'yellow_flash': int(settings[27].split(",")[1], 16),
+                'blue_flash': int(settings[28].split(",")[1], 16),
+                'green_flash': int(settings[29].split(",")[1], 16),
+                'red_flash': int(settings[30].split(",")[1], 16),
+                'eyesore_flash': int(settings[31].split(",")[1], 16)
+            }
+            leading_flash = int(settings[32].split(",")[1], 16)
+            trailing_pulse = int(settings[35].split(",")[1], 16)
+            validPulseCode = {
+                'gb_pulse': int(settings[36].split(",")[1], 16),
+                'rb_pulse': int(settings[37].split(",")[1], 16),
+                'rg_pulse': int(settings[38].split(",")[1], 16),
+                'white_pulse': int(settings[39].split(",")[1], 16),
+                'purple_pulse': int(settings[40].split(",")[1], 16),
+                'cyan_pulse': int(settings[41].split(",")[1], 16),
+                'yellow_pulse': int(settings[42].split(",")[1], 16),
+                'blue_pulse': int(settings[43].split(",")[1], 16),
+                'green_pulse': int(settings[44].split(",")[1], 16),
+                'red_pulse': int(settings[45].split(",")[1], 16),
+                'rgb_pulse': int(settings[46].split(",")[1], 16),
+                'all_pulse': int(settings[47].split(",")[1], 16)
+            }
+            leading_pulse = int(settings[48].split(",")[1], 16)
+            trailing_on = int(settings[51].split(",")[1], 16)
+            main_on = int(settings[52].split(",")[1], 16)
+            leading_on = int(settings[53].split(",")[1], 16)
+            trailing_off = int(settings[56].split(",")[1], 16)
+            main_off = int(settings[57].split(",")[1], 16)
+            leading_off = int(settings[58].split(",")[1], 16)
+            trailing_single = [int(x, 16) for x in settings[61].split(",")[1:-1]]
+            order_single = settings[62].split(",")[1:-1]
+            leading_single = [int(x, 16) for x in settings[63].split(",")[1:-1]]
+        except:
+            messagebox.showerror("Invalid Custom Operation Codes","The custom operation codes in the settings file are invalid. LightCraft will attempt to restore default operation codes.")
+            resetsettings2()
         address=settings[2][:-1]
         char_uuid=settings[3][:-1]
         seekAmount=float(settings[13][:-1])
+        defaultColour=settings[15][:-1].lower()
         if settings[14][:-1]=="1":
             set_appearance_mode("dark")
         else:
@@ -1272,13 +1349,13 @@ def main():
 
     #Frames
     mainframe=CTkTabview(root, command=updateTab)
-    mainframe.add("Basic")
+    mainframe.add("Remote")
     mainframe.add("Alert")
     mainframe.add("Player")
     mainframe.add("Settings")
     settingschild=CTkScrollableFrame(mainframe.tab("Settings"), fg_color="transparent")
-    sgframe=CTkFrame(mainframe.tab("Basic"), fg_color="transparent")
-    mgframe=CTkFrame(mainframe.tab("Basic"), fg_color="transparent")
+    sgframe=CTkFrame(mainframe.tab("Remote"), fg_color="transparent")
+    mgframe=CTkFrame(mainframe.tab("Remote"), fg_color="transparent")
     alertframe=CTkFrame(mainframe.tab("Alert"))
     mcontrolframe=CTkFrame(root, fg_color="transparent")
 
@@ -1312,6 +1389,8 @@ def main():
         image19 = Image.open(r".\Resources\delete.png")
         image20 = Image.open(r".\Resources\copy.png")
         image21 = Image.open(r".\Resources\saveFail.png")
+        image22 = Image.open(r".\Resources\bluetooth.png")
+        image23 = Image.open(r".\Resources\deleteNo.png")
     except:
         tk.messagebox.showerror("Missing Resources","LightCraft could not find critical resources. The Resources folder may have been corrupted or deleted. Please re-install LightCraft from official sources.") # type: ignore #Missing Resources
         quit()
@@ -1333,16 +1412,18 @@ def main():
     imgtk_save = CTkImage(light_image=image18,size=(16,16))
     imgtk_save_success = CTkImage(light_image=image15,size=(16,16))
     imgtk_del = CTkImage(light_image=image19,size=(16,16))
+    imgtk_del_no = CTkImage(light_image=image23,size=(16,16))
     imgtk_copy = CTkImage(light_image=image20,size=(16,16))
     imgtk_save_fail = CTkImage(light_image=image21,size=(16,16))
+    imgtk_bluetooth = CTkImage(light_image=image22,size=(18,18))
 
-    #Basic Elements
+    #Remote Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 2.7.5 (Beta)", font=CTkFont(size=13)) #Version
-    connect_button = CTkButton(root, text="Connect", font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
-    power_button = CTkButton(root, text="", fg_color=("#dbdbdb","#2b2b2b"), image=imgtk3, hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
-    colorpicker = CTkColorPicker(mainframe.tab("Basic"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
+    heading2 = CTkLabel(root, text="Version 2.8.6 (Stable)", font=CTkFont(size=13)) #Version
+    connect_button = CTkButton(root, text="Connect", compound="right",font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
+    power_button = CTkButton(root, text="", fg_color=("#dbdbdb","#2b2b2b"), hover_color=("#a0a0a0", "#1c1c1c"), image=imgtk3, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
+    colorpicker = CTkColorPicker(mainframe.tab("Remote"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
     pulseflash_var = tk.StringVar(value='all_pulse')
     rainbowPulse = CTkRadioButton(mgframe, text="Rainbow", command=sendPulse, variable= pulseflash_var, value='all_pulse')
     rgbPulse = CTkRadioButton(mgframe, text="RGB", command=sendPulse, variable= pulseflash_var, value='rgb_pulse')
@@ -1368,7 +1449,7 @@ def main():
     connect_button.grid(row=0,column=2,rowspan=2,padx=0, sticky='e')
     power_button.grid(row=0,column=3,rowspan=2,padx=10, sticky='e')
     mainframe.grid(row=2,column=0,columnspan=4,padx=10, pady=(0,10), sticky='nsew')
-    mainframe.tab("Basic").grid_columnconfigure(1,weight=1)
+    mainframe.tab("Remote").grid_columnconfigure(1,weight=1)
     sgframe.grid(row=0,column=0,padx=10,pady=10, sticky='n')
     sgButton(sgframe, 0, 0, "red")
     sgButton(sgframe, 0, 1, "green")
@@ -1425,10 +1506,11 @@ def main():
     CTkLabel(settingschild, text="Auto Connect").grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(settingschild, text="Enable Keyboard Shortcuts").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
     CTkLabel(settingschild, text="Remember Loaded Files").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Media Configurations").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Edit Operation Codes (Advanced)").grid(row=9,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Reset Settings").grid(row=8,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="User Manual").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Media Configurations").grid(row=8,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Edit Operation Codes (Advanced)").grid(row=10,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Reset Settings").grid(row=9,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="User Manual").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Default Colour").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
     macInputVar = tk.StringVar(value=settings[2][:-1])
     macInput = CTkEntry(settingschild, placeholder_text="32:06:C2:00:0A:9E", textvariable=macInputVar, height=5, corner_radius=5, justify='right')
     macInput.grid(row=0,column=1,padx=5,pady=(4,0), sticky='e')
@@ -1451,11 +1533,15 @@ def main():
     loadedVar = tk.IntVar(value=int(settings[6][:-1]))
     loadedSwitch = CTkCheckBox(settingschild, text="", variable=loadedVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleLoaded)
     loadedSwitch.grid(row=5,column=2,padx=(5,0),pady=(4,0), sticky='e')
-    hiddenButton = CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=showMusic).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
-    editOpButton = CTkButton(settingschild, text="Edit", width=60, height=15, corner_radius=5, command=openSettings).grid(row=9,column=2,padx=8,pady=(4,0), sticky='e')
+    defaultColourVar = tk.StringVar(value=settings[15][:-1])
+    defaultCombo = CTkComboBox(settingschild, variable=defaultColourVar, values=[color.capitalize() for color in validColours.keys()], width=70, height=20, border_width=0, corner_radius=3, command=updateDefaultColour)
+    defaultCombo.grid(row=6,column=2,padx=(8,7), sticky='e')
+    defaultCombo.bind("<FocusIn>",lambda e:root.focus_set())
+    CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=showMusic).grid(row=8,column=2,padx=8,pady=(4,0), sticky='e')
+    CTkButton(settingschild, text="Edit", width=60, height=15, corner_radius=5, command=openSettings).grid(row=10,column=2,padx=8,pady=(4,0), sticky='e')
     resetButton = CTkButton(settingschild, text="Reset", width=60, height=15, corner_radius=5, command=resetsettings)
-    resetButton.grid(row=8,column=2,padx=8,pady=(4,0), sticky='e')
-    useManButton = CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=openManual).grid(row=6,column=2,padx=8,pady=(4,0), sticky='e')
+    resetButton.grid(row=9,column=2,padx=8,pady=(4,0), sticky='e')
+    CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=openManual).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
 
     #Alert
     mainframe.tab("Alert").grid_columnconfigure(0,weight=1)

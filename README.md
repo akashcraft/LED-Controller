@@ -1,7 +1,7 @@
 # LightCraft
 Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 
-<img width=600px src="https://github.com/user-attachments/assets/9f66c3ec-44bc-48c8-bb99-abcd90124662">
+<img width=600px src="https://github.com/user-attachments/assets/1e4f0831-2cff-4d68-8a1e-e48ee2ca50b2">
 
 ## Features
 - Connect Button and Power Toggle
@@ -16,11 +16,11 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 - Settings
 - Dark Mode
 
-## Under Development
-- Custom Operation Codes
+## User Manual
+Will be available soon along with Installer.
 
 ## Installation
-There is no available release as of now but you may choose to run the source code yourself, Run the `lightcraft.py` file. Please read important notes below. Here are the requirements:
+An installer will be released soon. In the meantime, you may choose to run the source code yourself, Run the `lightcraft.py` file. Please read important notes below. Here are the requirements:
 
 - Python [Get it here](https://www.python.org/downloads/release/)
 - customtkinter [Get it here](https://github.com/TomSchimansky/CustomTkinter)
@@ -43,6 +43,16 @@ Clone this Repository by
 git clone https://akashcraft/LED-Controller.git
 ```
 
+## Screenshots
+### Alert SOS
+<img width=600px src="https://github.com/user-attachments/assets/7a529367-5c54-4648-b777-107f5d73abaf">
+
+### Music Player
+<img width=600px src="https://github.com/user-attachments/assets/620cbe70-d2bd-4ba3-b225-d71744600af7">
+
+### Settings
+<img width=600px src="https://github.com/user-attachments/assets/da08c666-b27f-49a4-bd35-61ee0ab790c6">
+
 ## Important Notes
 ### LightCraft CLI
 This version will not be developed further. Use it for a light weight option if you just want to send custom commands to your LED Strips.
@@ -50,21 +60,7 @@ This version will not be developed further. Use it for a light weight option if 
 ### LightCraft GUI
 If you plan to run the project locally, you will need to modify the `CTkColorPicker` and `CTkRadioButton` package as the stock package is modified to add functionality to LightCraft. Find the files in the repository and overwrite with the stock file. Failure to do this will result in Runtime Errors.
 
-LightCraft stores its configuration data in the `Settings.txt` which must be located in the same project folder. If this is not possible, LightCraft will attempt to re-create the files during the pre-GUI checks. Resources folder contains all the GUI elements and this folder **must not** be deleted. LightCraft will not load the GUI in that case.
-
-## Screenshots
-### Alert SOS
-<img width=600px src="https://github.com/user-attachments/assets/d70d88b3-f898-4f2b-9ef9-85f327614674">
-
-### Music Player
-<img width=600px src="https://github.com/user-attachments/assets/188b8216-53b5-4af2-ba98-a7115da286b9">
-
-### Settings
-<img width=600px src="https://github.com/user-attachments/assets/04b4b444-fd64-414d-b190-e473373aa1ea">
-
-
-## User Manual
-Will be available under Wiki after first stable release.
+LightCraft stores its sesttings and custom operation codes data in the `Settings.txt` which must be located in the same project folder. If this is not possible, LightCraft will attempt to re-create the files during the pre-GUI checks. Resources folder contains all the GUI elements and this folder **must not** be deleted. LightCraft will not load the GUI in that case.
 
 ## Who can use this?
 You are free to download and edit the source code files however you like. But, LightCraft is not to be resold for any commercial purpose(s).
