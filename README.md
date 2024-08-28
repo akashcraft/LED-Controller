@@ -17,10 +17,10 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 - Dark Mode
 
 ## User Manual
-Will be available soon along with installer.
+Will be available soon.
 
 ## Installation
-An installer will be released soon. In the meantime, you may choose to run the source code yourself, Run the `lightcraft.py` file. Please read important notes below. Here are the requirements:
+LightCraft can be installed on Windows using the Installer file provided in [Releases](https://github.com/akashcraft/LED-Controller/releases) section. You may also choose to run the source code yourself. Run the `lightcraft.py` file. Please read important notes below. Here are the requirements:
 
 - Python [Get it here](https://www.python.org/downloads/release/)
 - customtkinter [Get it here](https://github.com/TomSchimansky/CustomTkinter)
