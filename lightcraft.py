@@ -693,8 +693,6 @@ def main():
                             next_index = -1
                 except:
                     next_index = -1
-
-            
             root.after(80, update_music_slider)
 
     def set_music_slider(offset=0):
@@ -1361,7 +1359,7 @@ def main():
     #Making the Application
     root.title("LightCraft")
     root.protocol("WM_DELETE_WINDOW", destroyer)
-    root.iconbitmap(r".\Resources\logo.ico")
+    root.iconbitmap(r".\Resources\logo2.ico")
     applysettings()
     userwinx = root.winfo_screenwidth()
     userwiny = root.winfo_screenheight()
