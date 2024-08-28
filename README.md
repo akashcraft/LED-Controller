@@ -63,7 +63,7 @@ If you plan to run the project locally, you will need to modify the `CTkColorPic
 LightCraft stores its sesttings and custom operation codes data in the `Settings.txt` which must be located in the same project folder. If this is not possible, LightCraft will attempt to re-create the files during the pre-GUI checks. Resources folder contains all the GUI elements and this folder **must not** be deleted. LightCraft will not load the GUI in that case.
 
 ## Who can use this?
-You are free to download and edit the source code files however you like. But, LightCraft is not to be resold for any commercial purpose(s).
+You are free to download and edit the source code files however you like. 
 Should you wish to publish this in your project or socials, please provide appropriate credits.
 
 You can add this as your references (or description) if you like:
@@ -71,4 +71,4 @@ You can add this as your references (or description) if you like:
 Source Code: https://github.com/akashcraft/LED-Controller<br>
 Website: [akashcraft.ca](https://akashcraft.ca)
 
-Thanks!
+Your help is appreciated!
