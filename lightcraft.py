@@ -295,31 +295,34 @@ def main():
         sendHexMusic(hex_value)
     
     @debounce(1)
-    def sendRepeatMusic(data):
+    def sendRepeatMusic(data,times):
         global isRepeating, threadRepeat
         isRepeating = True
         start = int(data.split("-")[0])-1
         end = int(data.split("-")[1])-1
-        threadRepeat = _thread.start_new_thread(sendRepeatMusicThread, (start, end))
+        threadRepeat = _thread.start_new_thread(sendRepeatMusicThread, (start, end, int(times)))
     
-    def sendRepeatMusicThread(start, end):
+    def sendRepeatMusicThread(start, end, times):
         global isRepeating, cmds
         c = start
-        while True:
-            if isRepeating:
-                if c+1 <= end:
-                    delay = int(data[c+1].split(",")[1])-int(data[c].split(",")[1])
-                else:
-                    c = start
-                    continue
-                cmd = cmds[c]
-                func_name, args_str = cmd[:-1].split('(')
-                args = args_str.split('.') if args_str else []
-                command_functions[func_name](*args)
-                time.sleep(delay)
-                c += 1
+        f = 0
+        while isRepeating:
+            if c+1 <= end:
+                delay = (int(data[c+1].split(",")[1])-int(data[c].split(",")[1]))/1000
             else:
-                break
+                c = start
+                f += 1
+                if f == times:
+                    isRepeating = False
+                    break
+                else:
+                    continue
+            cmd = cmds[c]
+            func_name, args_str = cmd[:-1].split('(')
+            args = args_str.split('.') if args_str else []
+            command_functions[func_name](*args)
+            time.sleep(delay)
+            c += 1
 
     @debounce(0.1)
     def sendColourCB(button,index):
@@ -588,6 +591,8 @@ def main():
             return 0
 
     def clearload():
+        global repeatCmdsChild, repeatCmds, prohibited_times
+        repeatCmds, repeatCmdsChild, prohibited_times = [],[],[]
         load_button.configure(fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
         heading3.configure(text="No Media Loaded")
         link(True)
@@ -603,7 +608,7 @@ def main():
         musicframechild.grid_forget()
 
     def load(autoload=False):
-        global isLoaded, music_length, position, config_file_path, data, player_main, music
+        global isLoaded, music_length, position, config_file_path, data, player_main, music, next_index
         if isLoaded:
             if isPlaying:
                 stop()
@@ -617,9 +622,10 @@ def main():
                     stop()
                 return
             else:
+                clearload()
                 if settings[6][:-1] == "1":
                     settings[12] = music + "\n"
-                    writesettings()
+                    writesettings()    
         else:
             music = settings[12][:-1]
         for child in musicframechild.winfo_children():
@@ -661,11 +667,12 @@ def main():
         total_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+".0")
         player_main = MediaPlayer(music)
         position = 0
+        next_index = 0
 
     command_functions = {'sendColourMusic': sendColourMusic,'sendFlashMusic': sendFlashMusic,'sendPulseMusic': sendPulseMusic,'sendHexMusic': sendHexMusic,'sendRepeatMusic':sendRepeatMusic}
 
     def update_music_slider():
-        global isPlaying, isUpdatingSlider, position, cmds, isRepeating
+        global isPlaying, isUpdatingSlider, position, cmds, isRepeating, next_index
         if isPlaying and not isUpdatingSlider:
             current_time = player_main.get_time() / 1000  # type: ignore
             music_slider.set((current_time / music_length) * 100)
@@ -674,26 +681,24 @@ def main():
             if position >= music_length * 1000:
                 stop()
 
-            if isLinked and prohibited_times:
-                idx = bisect.bisect_left(prohibited_times, position)
-                if idx > 0 and abs(prohibited_times[idx - 1] - position) <= 300:
-                    closest_index = idx - 1
-                elif idx < len(prohibited_times) and abs(prohibited_times[idx] - position) <= 300:
-                    closest_index = idx
-                else:
-                    closest_index = None
-                
-                if closest_index is not None:
-                    isRepeating = False
-                    cmd = cmds[closest_index]
-                    func_name, args_str = cmd[:-1].split('(')
-                    args = args_str.split('.') if args_str else []
-                    command_functions[func_name](*args)
+            if isLinked and next_index != -1:
+                try:
+                    if abs(position-prohibited_times[next_index]) < 100:
+                        cmd = cmds[next_index]
+                        func_name, args_str = cmd[:-1].split('(')
+                        args = args_str.split('.') if args_str else []
+                        command_functions[func_name](*args)
+                        next_index += 1
+                        if next_index == len(prohibited_times):
+                            next_index = -1
+                except:
+                    next_index = -1
+
             
             root.after(80, update_music_slider)
 
     def set_music_slider(offset=0):
-        global isUpdatingSlider, position, player_main, isRepeating
+        global isUpdatingSlider, position, player_main, isRepeating, next_index
         isRepeating = False
         isUpdatingSlider = True
         if isLinked:
@@ -711,6 +716,13 @@ def main():
         else:
             music_slider.set((int(new_pos) / music_length / 1000) * 100)
         position = int(new_pos)
+        for i in range(len(prohibited_times)):
+            if position <= prohibited_times[i]:
+                next_index = i
+                break
+        else:
+            next_index = -1
+
         actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position/1000))+"."+format_ms(position%1000))
         isUpdatingSlider = False
 
@@ -760,12 +772,14 @@ def main():
             newFrame = CTkFrame(musicframechild, corner_radius=5, fg_color=("#ebebeb","#515151"))
             newFrame.grid_columnconfigure(6, weight=1)
             newFrame.grid(row=index,column=0,padx=(0,5),pady=1, sticky='ew')
-            label1 = CTkLabel(newFrame, text=cmd[0], font=CTkFont(size=13), height=5)
+            label1 = CTkLabel(newFrame, text=cmd[0], font=CTkFont(size=13), width=15, height=5)
             label1.grid(row=0,column=0,padx=(10,0),pady=5, sticky='w')
             label2 = CTkLabel(newFrame, text=cmd[2], font=CTkFont(size=13), height=5)
             label2.grid(row=0,column=1,padx=(10,5),pady=5, sticky='w')
             controlType = tk.StringVar(value=cmd[3])
             if controlType.get() == "Repeat":
+                if i not in repeatCmds:
+                    repeatCmds.append(i)
                 newFrame.configure(fg_color=("#c8c8c8","#3a3a3a"))
                 secondControl = tk.StringVar(value=cmd[4])
                 start = int(secondControl.get().split("-")[0])-1
@@ -773,12 +787,6 @@ def main():
                 for j in range(start, end+1):
                     if j not in repeatCmdsChild:
                         repeatCmdsChild.append(j)
-            if i+1 < len(data):
-                label3 = CTkLabel(newFrame, text=data[i+1].split(",")[2], font=CTkFont(size=13), height=5, text_color=("#6F6F6F","#888888"))
-            else:
-                label3 = CTkLabel(newFrame, text=time.strftime("%M:%S", time.gmtime(music_length))+".0", font=CTkFont(size=13), height=5, text_color=("#6F6F6F","#888888"))
-            label3.grid(row=0,column=2,padx=5,pady=5, sticky='w')
-            
             if (flag < 3):
                 combo1 = CTkComboBox(newFrame,variable=controlType, values=["Single","Hex","RGB","Pulse","Flash"], width=70, height=10, border_width=0, corner_radius=3, command=lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
                 flag = flag + 1
@@ -787,11 +795,9 @@ def main():
             combo1.grid(row=0,column=3,padx=(5,0),pady=0, sticky='w')
             combo1.bind("<FocusIn>", lambda e: root.focus_set())
             combo2, combo3, save_button, del_button, copy_button = frameCreator(newFrame, index, cmd, controlType.get())
-            if controlType.get() == "Repeat":
-                repeatCmds.append(i)
             cmds.append(cmd[7])   
             cmd_frames.append([newFrame, combo1, combo2, combo3, save_button, del_button, copy_button, label1])
-        for i in range(len(repeatCmdsChild)):
+        for i in repeatCmdsChild:
             cmd_frames[i][1].configure(values=["Single","Hex","RGB","Pulse","Flash"])
             cmd_frames[i][5].configure(state="disabled", image=imgtk_del_no)
             cmd_frames[i][0].configure(fg_color=("#c8c8c8","#3a3a3a"))
@@ -815,13 +821,15 @@ def main():
             combo2.grid(row=0,column=4,padx=(5,0),pady=0, sticky='w')
             combo3 = CTkComboBox(newFrame, variable=thirdControl, values=['0','1','2','3','4','5','6','7','8','9','10'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
             combo3.grid(row=0,column=5,padx=(5,0),pady=0, sticky='w')
+        elif controlType == "Repeat":
+            combo3 = CTkComboBox(newFrame, variable=thirdControl, values=['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo3.grid(row=0,column=5,padx=(5,0),pady=0, sticky='w')
         elif controlType == "RGB":
             t = secondControl.get()
             r = int(t[0:2], 16)
             g = int(t[2:4], 16)
             b = int(t[4:6], 16)
             secondControl.set(f"{r} {g} {b}")
-
         if controlType not in ["Hex","RGB","Repeat"]:
             combo2.bind("<FocusIn>", lambda e: root.focus_set())
         else:
@@ -867,7 +875,7 @@ def main():
         loadConfig()
 
     def editCmd(index, cmd, value):
-        global data, fobj, cmds, repeatCmds
+        global data, fobj, cmds, repeatCmds, prohibited_times, repeatCmdsChild
         cmd_frame = cmd_frames[index]
         controlType = cmd[3]
         if value in ["Single","Hex","RGB","Pulse","Flash","Repeat"]: #Major Change
@@ -893,12 +901,14 @@ def main():
                     cmd[4] = "FF0000"
                     cmd[7] = "sendHexMusic(#FF0000)"
                 elif value == "RGB":
-                    cmd[4] = "#FF0000"
+                    cmd[4] = "FF0000"
                     cmd[7] = "sendHexMusic(#FF0000)"
                 elif value == "Repeat":
                     cmd[4] = "1-3"
+                    cmd[5] = "1"
                     cmd[7] = "sendRepeatMusic(1-3)"
-                    repeatCmds.append(index)
+                    if index not in repeatCmds:
+                        repeatCmds.append(index)
                     cmd_frame[0].configure(fg_color=("#c8c8c8","#3a3a3a"))
                     root.focus_set()
                     for i in range(0,3):
@@ -907,6 +917,7 @@ def main():
                         cmd_frames[i][0].configure(fg_color=("#c8c8c8","#3a3a3a"))
                         if i not in repeatCmdsChild:
                             repeatCmdsChild.append(i)
+                        
                 combo2, combo3, save_button, del_button, copy_button = frameCreator(cmd_frame[0], index, cmd, value)
                 cmd_frame[2] = combo2
                 cmd_frame[3] = combo3
@@ -950,9 +961,9 @@ def main():
                 value = cmd_frame[2].get()
                 if value.split(" ")[0].isnumeric() and value.split(" ")[1].isnumeric() and value.split(" ")[2].isnumeric() and len(value.split(" ")) == 3 and all(0 <= int(i) <= 255 for i in value.split(" ")):
                     rgb_values = value.split(" ")
-                    hex_value = '#{:02x}{:02x}{:02x}'.format(int(rgb_values[0]), int(rgb_values[1]), int(rgb_values[2]))
+                    hex_value = '{:02x}{:02x}{:02x}'.format(int(rgb_values[0]), int(rgb_values[1]), int(rgb_values[2]))
                     cmd[4] = hex_value
-                    cmd[7] = "sendHexMusic(" + hex_value.lower() + ")"
+                    cmd[7] = "sendHexMusic(#" + hex_value.lower() + ")"
                     root.focus_set()
                     cmd_frame[4].configure(image=imgtk_save_success)
                     root.after(1000, lambda: cmd_frame[4].configure(image=imgtk_save))
@@ -963,10 +974,10 @@ def main():
                     cmd_frame[2].focus_set()
                     return
             elif controlType == "Repeat":
-                value = cmd_frame[2].get()
-                start = int(value.split("-")[0])
-                end = int(value.split("-")[1])
-                if not (re.match(r'^([1-9]\d*|0)-([1-9]\d*|0)$', value) and start <= end):
+                fvalue = cmd_frame[2].get()
+                start = int(fvalue.split("-")[0])
+                end = int(fvalue.split("-")[1])
+                if not (re.match(r'^([1-9]\d*|0)-([1-9]\d*|0)$', fvalue) and start <= end):
                     cmd_frame[4].configure(image=imgtk_save_fail)
                     root.after(1000, lambda: cmd_frame[4].configure(image=imgtk_save))
                     messagebox.showerror("Invalid Range","Please enter a valid range. It must be two numbers separated by a hyphen. For example, 1-9. The first number cannot exceed the second number and the second number cannot exceed the total number of commands excluding Repeat commands.")
@@ -974,24 +985,36 @@ def main():
                     return
                 for i in range(start-1, end):
                     if i in repeatCmds:
-                        print(i, repeatCmds,"!!")
                         cmd_frame[4].configure(image=imgtk_save_fail)
                         root.after(1000, lambda: cmd_frame[4].configure(image=imgtk_save))
                         messagebox.showerror("Nested Repeats","You cannot set a range that has another Repeat command within it.")
                         cmd_frame[2].focus_set()
                         return
-                cmd[4] = value
-                cmd_frame[0].configure(fg_color=("#c8c8c8","#3a3a3a"))
-                cmd[7] = "sendRepeatMusic("+value+")"
-                root.focus_set()
-                cmd_frame[4].configure(image=imgtk_save_success)
-                root.after(1000, lambda: cmd_frame[4].configure(image=imgtk_save))
-                for i in range(start-1,end):
-                    cmd_frames[i][1].configure(values=["Single","Hex","RGB","Pulse","Flash"])
-                    cmd_frames[i][5].configure(state="disabled",image=imgtk_del_no)
-                    cmd_frames[i][0].configure(fg_color=("#c8c8c8","#3a3a3a"))
-                    if i not in repeatCmdsChild:
-                        repeatCmdsChild.append(i)
+                if value.isnumeric():
+                    cmd[5] = value
+                    cmd[7] = "sendRepeatMusic("+cmd[4].lower()+"."+value+")"
+                else:
+                    oldstart = int(cmd[4].split("-")[0])-1
+                    oldend = int(cmd[4].split("-")[1])-1
+                    for i in range(oldstart,oldend+1):
+                        if i not in list(x for x in range(start-1,end)):
+                            repeatCmdsChild.remove(i)
+                            if i not in [0,1,2]:
+                                cmd_frames[i][1].configure(values=["Single","Hex","RGB","Pulse","Flash","Repeat"])
+                            cmd_frames[i][5].configure(state="normal",image=imgtk_del)
+                            cmd_frames[i][0].configure(fg_color=("#ebebeb","#515151"))
+                    cmd[4] = fvalue
+                    cmd_frame[0].configure(fg_color=("#c8c8c8","#3a3a3a"))
+                    cmd[7] = "sendRepeatMusic("+fvalue+"."+cmd[5]+")"
+                    root.focus_set()
+                    cmd_frame[4].configure(image=imgtk_save_success)
+                    root.after(1000, lambda: cmd_frame[4].configure(image=imgtk_save))
+                    for i in range(start-1,end):
+                        cmd_frames[i][1].configure(values=["Single","Hex","RGB","Pulse","Flash"])
+                        cmd_frames[i][5].configure(state="disabled",image=imgtk_del_no)
+                        cmd_frames[i][0].configure(fg_color=("#c8c8c8","#3a3a3a"))
+                        if i not in repeatCmdsChild:
+                            repeatCmdsChild.append(i)
         cmds[index] = cmd[7]
         data[index] = ','.join(cmd)
         fobj = open(config_file_path, "w")
@@ -1000,7 +1023,7 @@ def main():
 
     def addCmd(copy=False, copy_data=None):
         global data, cmd_frames, prohibited_times
-        if not any(abs(position - t) <= 300 for t in prohibited_times):
+        if position not in prohibited_times:
             index = 0
             for i in data:
                 ipos = int(i.split(",")[1])
@@ -1020,7 +1043,7 @@ def main():
                 data[i] = ','.join(cmd)
             refreshCmds()
         else:
-            messagebox.showerror("Duplicate Command","A nearby command already exists in the configuration.")
+            messagebox.showerror("Duplicate Command","A command already exists in the configuration at that timestamp.")
 
     def link(unlink=False):
         global isLinked
@@ -1420,7 +1443,7 @@ def main():
     #Remote Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 2.8.6 (Stable)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 2.8.7 (Stable)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", compound="right",font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color=("#dbdbdb","#2b2b2b"), hover_color=("#a0a0a0", "#1c1c1c"), image=imgtk3, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Remote"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))

@@ -48,7 +48,7 @@ git clone https://akashcraft/LED-Controller.git
 <img width=600px src="https://github.com/user-attachments/assets/7a529367-5c54-4648-b777-107f5d73abaf">
 
 ### Music Player
-<img width=600px src="https://github.com/user-attachments/assets/620cbe70-d2bd-4ba3-b225-d71744600af7">
+<img width=600px src="https://github.com/user-attachments/assets/c51400ca-c815-4d20-9356-fd5d8c4a8560">
 
 ### Settings
 <img width=600px src="https://github.com/user-attachments/assets/da08c666-b27f-49a4-bd35-61ee0ab790c6">
