@@ -2,7 +2,7 @@
 #Made by Akash Samanta
 
 import math
-import asyncio, _thread, os, time, webbrowser, re, subprocess, keyboard, cv2, bisect, threading
+import asyncio, _thread, os, time, webbrowser, re, subprocess, keyboard, cv2, threading
 from vlc import MediaPlayer
 from bleak import BleakClient
 from PIL import Image
@@ -1250,7 +1250,7 @@ def main():
     #Normal Reset from Application
     def resetsettings():
         global isLoaded
-        ans=messagebox.askyesno("Reset Settings","You will lose any custom operation codes that you have defined. Are you sure you want to reset settings?")
+        ans=messagebox.askyesno("Reset Settings","You will also lose any custom operation codes that you have defined. Are you sure you want to reset settings?")
         if ans:
             if isLoaded:
                 clearload()
