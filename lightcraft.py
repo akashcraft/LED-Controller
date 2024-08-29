@@ -532,7 +532,7 @@ def main():
         writesettings()
 
     def openManual():
-        webbrowser.open(r"www.github.com/akashcraft/LED-Controller")
+        webbrowser.open(r"www.github.com/akashcraft/LED-Controller/wiki")
     
     def openSettings():
         if os.path.exists("Settings.txt"):
