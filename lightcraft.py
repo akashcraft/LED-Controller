@@ -674,7 +674,7 @@ def main():
             clearload()
 
             isLoaded = False
-            messagebox.showerror("Unable to Load Media","LightCraft was unable to load the selected media. Please make sure that the file is not corrupted and that it is a valid media file.")
+            messagebox.showerror("Unable to Load Media","LightCraft was unable to load the selected media. Please make sure that the file is not corrupted and that it is a valid media file. Delete any corrupted configuration file. Try a different media and if the problem persists, please contact the developer.")
 
     command_functions = {'sendColourMusic': sendColourMusic,'sendFlashMusic': sendFlashMusic,'sendPulseMusic': sendPulseMusic,'sendHexMusic': sendHexMusic,'sendRepeatMusic':sendRepeatMusic}
 
