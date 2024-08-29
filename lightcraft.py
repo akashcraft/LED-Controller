@@ -534,6 +534,8 @@ def main():
         defaultColour = defaultColourVar.get().lower()
         settings[15] = defaultColourVar.get() + "\n"
         writesettings()
+        if isConnected:
+            sendColourMusic(defaultColour)
 
     def openManual():
         webbrowser.open(r"www.github.com/akashcraft/LED-Controller/wiki")
@@ -617,24 +619,21 @@ def main():
 
     def load(autoload=False):
         global isLoaded, music_length, position, config_file_path, data, player_main, music, next_index
-        if isLoaded:
-            if isPlaying:
-                stop()
+        if isLoaded and isPlaying:
+            stop()
             player_main.release() # type: ignore
         if not autoload:
             music = filedialog.askopenfilename(filetypes=[("Media Files", "*.mp3 *.mp4")])
             if music == "":
-                clearload()
                 isLoaded = False
-                if isPlaying:
-                    stop()
                 return
             else:
                 clearload()
         else:
             music = settings[12][:-1]
-        for child in musicframechild.winfo_children():
-            child.destroy()
+        for child in musicframechild.grid_slaves():
+            child.grid_remove()
+        musicframe.event_generate("<MouseWheel>", delta=1000*120)
         try:
             #Load Successful
             config_dir = os.path.join(os.getcwd(), "Configurations")
@@ -889,8 +888,9 @@ def main():
         fobj = open(config_file_path, "w")
         fobj.writelines(data)
         fobj.close()
-        for child in musicframechild.winfo_children():
-            child.grid_forget()
+        for child in musicframechild.grid_slaves():
+            child.grid_remove()
+        musicframe.event_generate("<MouseWheel>", delta=1000*120)
         loadConfig()
 
     def editCmd(index, cmd, value):
