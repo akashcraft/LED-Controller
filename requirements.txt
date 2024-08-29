@@ -4,3 +4,5 @@ bleak
 pillow
 python-vlc
 keyboard
+mutagen
+opencv-python
