@@ -383,6 +383,8 @@ def main():
     def sendPulseMusic(colour, freq):
         if colour == "rainbow":
             colour = "all"
+        elif colour == "primary":
+            colour = "rgb"
         elif colour == "red blue":
             colour = "rb"
         elif colour == "green blue":
@@ -408,6 +410,8 @@ def main():
     def sendFlashMusic(colour, freq):
         if colour == "rainbow":
             colour = "all"
+        elif colour == "primary":
+            colour = "rgb"
         data = bytearray([trailing_flash,validFlashCode[colour+"_flash"],10-int(freq),leading_flash])
         controller.run_coroutine(controller.sendCmd(data))
 
@@ -823,12 +827,12 @@ def main():
             combo2.grid(row=0,column=4,padx=(5,0),pady=0, sticky='w')
             combo3 = None
         elif controlType == "Flash":
-            combo2 = CTkComboBox(newFrame, variable=secondControl, values=['Rainbow', 'RGB', 'White', 'Purple', 'Cyan', 'Yellow', 'Blue', 'Green', 'Red'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo2 = CTkComboBox(newFrame, variable=secondControl, values=['Rainbow', 'Primary', 'Red', 'Green', 'Blue', 'White', 'Purple', 'Cyan', 'Yellow'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
             combo2.grid(row=0,column=4,padx=(5,0),pady=0, sticky='w')
             combo3 = CTkComboBox(newFrame, variable=thirdControl, values=['0','1','2','3','4','5','6','7','8','9','10'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
             combo3.grid(row=0,column=5,padx=(5,0),pady=0, sticky='w')
         elif controlType == "Pulse":
-            combo2 = CTkComboBox(newFrame, variable=secondControl, values=['Rainbow', 'RGB', 'Green Blue', 'Red Blue', 'Red Green', 'White', 'Purple', 'Cyan', 'Yellow', 'Blue', 'Green', 'Red'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
+            combo2 = CTkComboBox(newFrame, variable=secondControl, values=['Rainbow', 'Primary', 'Red', 'Green', 'Blue', 'Green Blue', 'Red Blue', 'Red Green', 'White', 'Purple', 'Cyan', 'Yellow'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
             combo2.grid(row=0,column=4,padx=(5,0),pady=0, sticky='w')
             combo3 = CTkComboBox(newFrame, variable=thirdControl, values=['0','1','2','3','4','5','6','7','8','9','10'], width=70, height=10, border_width=0, corner_radius=3, command= lambda value, index=index, cmd=cmd: editCmd(index, cmd, value))
             combo3.grid(row=0,column=5,padx=(5,0),pady=0, sticky='w')
