@@ -4,6 +4,7 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 <img width=600px src="https://github.com/user-attachments/assets/cd95f957-19d0-464f-b410-fe24c6800e57">
 
 ## Features
+- Dark Mode
 - Connect Button and Power Toggle
 - Single Colour Control
 - Hex Colour Control
@@ -13,8 +14,7 @@ Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
 - Alert SOS (Sounds from Hitman 3)
 - Media Player with LED Sync
 - Keyboard Shortcuts
-- Settings
-- Dark Mode
+- Settings with Custom Operation Codes
 
 ## User Manual
 Please read the [Wiki](https://github.com/akashcraft/LED-Controller/wiki).
