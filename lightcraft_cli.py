@@ -1,3 +1,6 @@
+#Lightcraft CLI Source Code - DEPRECATED
+#Made by Akash Samanta
+
 import asyncio, os, time, ast
 from bleak import BleakClient
 
