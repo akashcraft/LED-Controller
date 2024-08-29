@@ -599,9 +599,13 @@ def main():
         repeatCmds, repeatCmdsChild, prohibited_times = [],[],[]
         load_button.configure(fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
         heading3.configure(text="No Media Loaded")
-        link(True)
+        if (isLinked and isConnected):
+            link_button.configure(fg_color="green", hover_color="#005500")
+        elif isConnected:
+            link_button.configure(fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
+        else:
+            link_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"))
         play_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"))
-        link_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"))
         add_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"))
         seek_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"))
         stop_button.configure(state="disabled",fg_color=("#2b6b8f","#0f4d67"))
@@ -659,14 +663,12 @@ def main():
             loadConfig()
             load_button.configure(fg_color="green", hover_color="#005500")
             heading3.configure(text=music_name)
-            music_slider.configure(state="normal")
+            music_slider.configure(to=int(music_length*1000))
             play_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-            if isConnected:
-                link_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             add_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             seek_button.configure(state="normal", text=str(seekAmount).rstrip('0').rstrip('.') + "s",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             stop_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
-            total_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+".0")
+            total_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+"."+format_ms(int(music_length*1000)))
             player_main = MediaPlayer(music)
             position = 0
             next_index = 0
@@ -676,7 +678,6 @@ def main():
         except:
             #Load Failed
             clearload()
-
             isLoaded = False
             messagebox.showerror("Unable to Load Media","LightCraft was unable to load the selected media. Please make sure that the file is not corrupted and that it is a valid media file. Delete any corrupted configuration file. Try a different media and if the problem persists, please contact the developer.")
 
@@ -685,12 +686,14 @@ def main():
     def update_music_slider():
         global isPlaying, isUpdatingSlider, position, cmds, isRepeating, next_index
         if isPlaying and not isUpdatingSlider:
-            current_time = player_main.get_time() / 1000  # type: ignore
-            music_slider.set((current_time / music_length) * 100)
-            position = int(current_time * 1000)
-            actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position // 1000)) + "." + format_ms(position % 1000))
-            if position >= music_length * 1000:
-                stop()
+            position = player_main.get_time() # type: ignore
+            music_slider.set(position)
+            if abs(position - (music_length * 1000)) < 1000:
+                root.after(2000, stop)
+                music_slider.set(int(music_length * 1000))
+                actual_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+"."+format_ms(int(music_length*1000)))
+            else:
+                actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position // 1000)) + "." + format_ms(position % 1000))
 
             if isLinked and next_index != -1:
                 try:
@@ -713,7 +716,7 @@ def main():
         if isLinked:
             sendColourMusic(defaultColour)
         if offset == 0:
-            new_pos = math.floor(music_slider.get() / 100 * music_length * 10) * 100
+            new_pos = music_slider.get()
         else:
             new_pos = position + (offset * 1000)
             if new_pos < 0:
@@ -722,8 +725,6 @@ def main():
                 new_pos = music_length * 1000
         if isPlaying:
             player_main.set_time(int(new_pos)) # type: ignore
-        else:
-            music_slider.set((int(new_pos) / music_length / 1000) * 100)
         position = int(new_pos)
         for i in range(len(prohibited_times)):
             if position <= prohibited_times[i]:
@@ -744,6 +745,8 @@ def main():
     def play():
         global isPlaying, isRepeating, next_index
         isRepeating = False
+        if position == 0:
+            music_slider.configure(state="normal")
         for i in range(len(prohibited_times)):
             if position <= prohibited_times[i]:
                 next_index = i
@@ -763,6 +766,7 @@ def main():
             play_button.configure(image=imgtk_play)
             player_main.pause() # type: ignore
 
+    @debounce(2)
     def stop():
         global isPlaying, position, player_main, isRepeating
         isRepeating = False
@@ -771,10 +775,10 @@ def main():
         music_slider.set(0)
         if isLinked:
             sendColourMusic(defaultColour)
-        isPlaying = False
         play_button.configure(image=imgtk_play)
-        if player_main:
-            player_main.stop()
+        player_main.stop() # type: ignore
+        music_slider.configure(state="disabled")
+        isPlaying = False
 
     def loadConfig():
         global cmd_frames, prohibited_times, fobj, data, cmds, repeatCmds, repeatCmdsChild
@@ -1060,9 +1064,9 @@ def main():
         else:
             messagebox.showerror("Duplicate Command","A command already exists in the configuration at that timestamp.")
 
-    def link(unlink=False):
+    def link():
         global isLinked
-        if not isLinked and unlink==False:
+        if not isLinked:
             isLinked = True
             link_button.configure(fg_color="green", hover_color="#005500")
         else:
