@@ -740,9 +740,9 @@ def main():
                 new_pos = 0
             elif new_pos > (music_length * 1000):
                 new_pos = music_length * 1000
-        if isPlaying:
-            pygame.mixer.music.play(0, new_pos//1000)
-        else:
+        pygame.mixer.music.play(0, new_pos//1000)
+        if not isPlaying:
+            pygame.mixer.music.pause()
             music_slider.set(new_pos)
         last_pos = new_pos
         position = int(new_pos)
@@ -781,7 +781,7 @@ def main():
             play_button.configure(image=imgtk_play)
             pygame.mixer.music.pause()
 
-    @debounce(2)
+    @debounce(0.3)
     def stop():
         global isPlaying, position, isRepeating, last_pos, player_main
         last_pos = 0
