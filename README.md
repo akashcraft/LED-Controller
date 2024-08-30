@@ -63,4 +63,7 @@ You can add this as your references (or description) if you like:
 Source Code: https://github.com/akashcraft/LED-Controller<br>
 Website: [akashcraft.ca](https://akashcraft.ca)
 
-Your help is appreciated!
+## Donation
+If you like my work and would like to donate me, I would really appreciate it!<br><br>
+[<img align="centre" src="https://github.com/user-attachments/assets/2ebd1ec4-0b2c-476d-98d1-267a08e9cd16">](https://www.paypal.com/donate/?business=YFEQJ9D5KR9PW&no_recurring=0&item_name=Thank+you+for+considering+to+donate+me%21+This+way+I+can+keep+developing+more+applications+for+you.&currency_code=CAD)
+
