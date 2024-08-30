@@ -27,7 +27,6 @@ linkColour = "white"
 isPlaying = False
 isLinked = False
 isLoaded = False
-isUpdatingSlider = False
 seekAmount = 0.5
 isRepeating = False
 repeatCmds, repeatCmdsChild = [],[]
@@ -701,8 +700,8 @@ def main():
     command_functions = {'sendColourMusic': sendColourMusic,'sendFlashMusic': sendFlashMusic,'sendPulseMusic': sendPulseMusic,'sendHexMusic': sendHexMusic,'sendRepeatMusic':sendRepeatMusic}
 
     def update_music_slider():
-        global isPlaying, isUpdatingSlider, position, cmds, isRepeating, next_index
-        if isPlaying and not isUpdatingSlider:
+        global isPlaying, position, cmds, isRepeating, next_index
+        if isPlaying:
             position = last_pos + pygame.mixer.music.get_pos()
             music_slider.set(position)
             if abs(position - (music_length * 1000)) < 300:
@@ -725,11 +724,12 @@ def main():
                 except:
                     next_index = -1
             root.after(100, update_music_slider)
+        else:
+            return
 
     def set_music_slider(offset=0):
-        global isUpdatingSlider, position, isRepeating, next_index, last_pos
+        global position, isRepeating, next_index, last_pos
         isRepeating = False
-        isUpdatingSlider = True
         if isLinked:
             sendColourMusic(defaultColour)
         if offset == 0:
@@ -752,9 +752,7 @@ def main():
                 break
         else:
             next_index = -1
-
         actual_time.configure(text=time.strftime("%M:%S", time.gmtime(position/1000))+"."+format_ms(position%1000))
-        isUpdatingSlider = False
 
     def format_ms(ms):
         if ms < 100:
@@ -774,7 +772,7 @@ def main():
         if not isPlaying:
             isPlaying = True
             play_button.configure(image=imgtk_pause)
-            pygame.mixer.music.play(0, position//1000)
+            pygame.mixer.music.unpause()
             update_music_slider()
         else:
             isPlaying = False
