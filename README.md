@@ -50,7 +50,7 @@ git clone https://akashcraft/LED-Controller.git
 This version will not be developed further. Use it for a light weight option if you just want to send custom commands to your LED Strips. Please read the [Wiki](https://github.com/akashcraft/LED-Controller/wiki) for more information.
 
 ### LightCraft GUI
-If you plan to run the project locally, you will need to modify the `CTkColorPicker` package as the stock package is modified to add functionality to LightCraft. Find the file in the repository and overwrite with the stock file.
+If you plan to run the project locally, you will need to modify the `CTkColorPicker` package as the stock package is modified to add functionality to LightCraft. Find the file in the repository and overwrite the stock file.
 
 LightCraft stores its settings and custom operation codes data in the `Settings.txt` which must be located in the same project folder. If this is not possible, LightCraft will attempt to re-create the files during the pre-GUI checks. Resources folder contains all the GUI elements and this folder **must not** be deleted. LightCraft will not load the GUI in that case.
 
