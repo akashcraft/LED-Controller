@@ -28,7 +28,7 @@ pip install -r requirements.txt
 ```
 or simply paste the following in terminal
 ```
-pip install customtkinter, CTkColorPicker, bleak, pillow, python-vlc, keyboard, mutagen, opencv-python
+pip install customtkinter, CTkColorPicker, bleak, pillow, pygame, keyboard, mutagen, opencv-python
 ```
 Clone this Repository by
 ```

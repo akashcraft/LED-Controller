@@ -1,15 +1,16 @@
 #LightCraft Source Code
 #Made by Akash Samanta
+#Version 2.8.8
 
-import math
-import asyncio, _thread, os, time, webbrowser, re, subprocess, keyboard, cv2, threading
-from vlc import MediaPlayer
+import asyncio, _thread, os, time, webbrowser, re, subprocess, keyboard, threading, pygame
+from moviepy.editor import VideoFileClip
 from bleak import BleakClient
 from PIL import Image
 from customtkinter import * # type: ignore
 import tkinter as tk
-from tkinter import messagebox
+import tkinter.messagebox as messagebox
 from CTkColorPicker import * # type: ignore
+
 from functools import wraps
 from lightcraft_cli import repeat, enableRepeat, disableRepeat
 from mutagen.mp3 import MP3
@@ -136,7 +137,7 @@ class BluetoothController:
 
 def main():
     global controller, loop_thread
-
+    pygame.init()
     def debounce(wait):
         def decorator(fn):
             last_call = [0]
@@ -548,7 +549,7 @@ def main():
 
     #Alert Functions
     def playAlert():
-        global interval, player
+        global interval
         if not isOn:
             togglePower()
         enableRepeat()
@@ -556,45 +557,43 @@ def main():
         pulseflash_var.set("red_pulse")
         match alert:
             case 0:
-                player = MediaPlayer(r".\Resources\italyAlert.mp3")
+                pygame.mixer.music.load(r".\Resources\italyAlert.mp3")
                 loop_thread1 = threading.Thread(target=lambda: asyncio.run(repeat(controller.client, char_uuid, '["0.3 red","0.3 pink"]', 100)))
                 loop_thread1.start()
             case 1:
-                player = MediaPlayer(r".\Resources\japanAlert.mp3")
+                pygame.mixer.music.load(r".\Resources\japanAlert.mp3")
                 interval = 0
                 sendPulse()
             case 2:
-                player = MediaPlayer(r".\Resources\franceAlert.mp3")
+                pygame.mixer.music.load(r".\Resources\franceAlert.mp3")
                 interval = 1
                 sendPulse()
             case 3:
-                player = MediaPlayer(r".\Resources\usaAlert.mp3")
+                pygame.mixer.music.load(r".\Resources\usaAlert.mp3")
                 interval = 6
                 sendPulse()
         intervalSlider.set(10-interval)
-        player.play() # type: ignore
+        pygame.mixer.music.play()
         alertButton.configure(text="Stop Alert", fg_color="#AA0000", hover_color="#880000", command=stopAlert)
 
     def stopAlert():
-        global player
-        if 'player' in globals() and player:
-            player.stop()
+        pygame.mixer.music.stop()
+        pygame.mixer.music.unload()
         disableRepeat()
         sendColourMusic(defaultColour)
         alertButton.configure(text="Play Alert",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"), command=playAlert)
 
     #Music Functions
-    def getVLength(file_path):
-        try:
-            cap = cv2.VideoCapture(file_path)
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-            duration = frame_count / fps
-            cap.release()
-            return duration
-        except Exception as e:
-            print(f"Error getting video length: {e}")
-            return 0
+    def get_vlength(video_path):
+        with VideoFileClip(video_path) as video:
+            duration = video.duration
+        return duration
+
+    def extract_av(video_path, audio_path):
+        video = VideoFileClip(video_path)
+        audio = video.audio
+        if audio is not None:
+            audio.write_audiofile(audio_path)
 
     def clearload():
         global repeatCmdsChild, repeatCmds, prohibited_times
@@ -618,10 +617,10 @@ def main():
         musicframechild.grid_forget()
 
     def load(autoload=False):
-        global isLoaded, music_length, position, config_file_path, data, player_main, music, next_index
+        global isLoaded, music_length, position, config_file_path, data, music, next_index, last_pos, isVideo
         if isLoaded and isPlaying:
             stop()
-            player_main.release() # type: ignore
+            pygame.mixer.music.unload()
         if not autoload:
             music = filedialog.askopenfilename(filetypes=[("Media Files", "*.mp3 *.mp4")])
             if music == "":
@@ -652,27 +651,46 @@ def main():
             #Config Load Successful
             isLoaded = True
             musicframechild.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
+            video = music
             if music.endswith(".mp3"):
                 audio = MP3(music)
                 music_length = audio.info.length
+                isVideo = False
             elif music.endswith(".mp4"):
-                music_length = getVLength(music)
+                music_length = get_vlength(music)
+                isVideo = True
+                try:
+                    if not os.path.exists(os.path.join(config_dir, f"{music_name} LightCraft.mp3")):
+                        messagebox.showinfo("Extracting Audio","LightCraft needs to extract the audio from the selected video. This may take a few seconds.")
+                        extract_av(music, os.path.join(config_dir, f"{music_name} LightCraft.mp3"))
+                except:
+                    messagebox.showerror("Unable to Extract Audio","LightCraft was unable to extract the audio from the selected video. Please make sure that the file is not corrupted and that it is a valid video file. Try a different video and if the problem persists, please contact the developer.")
+                    clearload()
+                    isLoaded = False
+                    return
+                music = os.path.join(config_dir, f"{music_name} LightCraft.mp3")
             else:
                 music_length = 0
             loadConfig()
             load_button.configure(fg_color="green", hover_color="#005500")
             heading3.configure(text=music_name)
-            music_slider.configure(to=int(music_length*1000))
+            music_slider.configure(state="normal",to=int(music_length*1000))
             play_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             add_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             seek_button.configure(state="normal", text=str(seekAmount).rstrip('0').rstrip('.') + "s",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             stop_button.configure(state="normal",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             total_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+"."+format_ms(int(music_length*1000)))
-            player_main = MediaPlayer(music)
+            pygame.mixer.music.load(music)
+            pygame.mixer.music.play()
+            pygame.mixer.music.pause()
+            last_pos = 0
             position = 0
             next_index = 0
             if settings[6][:-1] == "1":
-                settings[12] = music + "\n"
+                if isVideo:
+                    settings[12] = video + "\n"
+                else:
+                    settings[12] = music + "\n"
                 writesettings()    
         except:
             #Load Failed
@@ -685,10 +703,10 @@ def main():
     def update_music_slider():
         global isPlaying, isUpdatingSlider, position, cmds, isRepeating, next_index
         if isPlaying and not isUpdatingSlider:
-            position = player_main.get_time() # type: ignore
+            position = last_pos + pygame.mixer.music.get_pos()
             music_slider.set(position)
-            if abs(position - (music_length * 1000)) < 1000:
-                root.after(2000, stop)
+            if abs(position - (music_length * 1000)) < 300:
+                root.after(300, stop)
                 music_slider.set(int(music_length * 1000))
                 actual_time.configure(text=time.strftime("%M:%S", time.gmtime(music_length))+"."+format_ms(int(music_length*1000)))
             else:
@@ -696,7 +714,7 @@ def main():
 
             if isLinked and next_index != -1:
                 try:
-                    if abs(position-prohibited_times[next_index]) < 300:
+                    if abs(position-prohibited_times[next_index]) < 200:
                         cmd = cmds[next_index]
                         func_name, args_str = cmd[:-1].split('(')
                         args = args_str.split('.') if args_str else []
@@ -706,10 +724,10 @@ def main():
                             next_index = -1
                 except:
                     next_index = -1
-            root.after(80, update_music_slider)
+            root.after(100, update_music_slider)
 
     def set_music_slider(offset=0):
-        global isUpdatingSlider, position, player_main, isRepeating, next_index
+        global isUpdatingSlider, position, isRepeating, next_index, last_pos
         isRepeating = False
         isUpdatingSlider = True
         if isLinked:
@@ -723,7 +741,10 @@ def main():
             elif new_pos > (music_length * 1000):
                 new_pos = music_length * 1000
         if isPlaying:
-            player_main.set_time(int(new_pos)) # type: ignore
+            pygame.mixer.music.play(0, new_pos//1000)
+        else:
+            music_slider.set(new_pos)
+        last_pos = new_pos
         position = int(new_pos)
         for i in range(len(prohibited_times)):
             if position <= prohibited_times[i]:
@@ -742,10 +763,8 @@ def main():
             return str(ms)[:1]
 
     def play():
-        global isPlaying, isRepeating, next_index
+        global isPlaying, isRepeating, next_index, position
         isRepeating = False
-        if position == 0:
-            music_slider.configure(state="normal")
         for i in range(len(prohibited_times)):
             if position <= prohibited_times[i]:
                 next_index = i
@@ -755,19 +774,19 @@ def main():
         if not isPlaying:
             isPlaying = True
             play_button.configure(image=imgtk_pause)
-            player_main.set_time(int(position)) # type: ignore
-            player_main.play() # type: ignore
+            pygame.mixer.music.play(0, position//1000)
             update_music_slider()
         else:
             isPlaying = False
             if isLinked:
                 sendColourMusic(defaultColour)
             play_button.configure(image=imgtk_play)
-            player_main.pause() # type: ignore
+            pygame.mixer.music.pause()
 
     @debounce(2)
     def stop():
-        global isPlaying, position, player_main, isRepeating
+        global isPlaying, position, isRepeating, last_pos, player_main
+        last_pos = 0
         isRepeating = False
         position = 0
         actual_time.configure(text="00:00.0")
@@ -775,8 +794,8 @@ def main():
         if isLinked:
             sendColourMusic(defaultColour)
         play_button.configure(image=imgtk_play)
-        player_main.stop() # type: ignore
-        music_slider.configure(state="disabled")
+        pygame.mixer.music.play()
+        pygame.mixer.music.pause()
         isPlaying = False
 
     def loadConfig():
@@ -859,7 +878,6 @@ def main():
             combo2.bind("<FocusIn>", lambda e: unbindAll())
             combo2.bind("<FocusOut>", lambda e: bindMusic())
             combo2.bind("<Return>", lambda e: save_button.invoke())
-
         if combo3!=None:
             combo3.bind("<FocusIn>", lambda e: root.focus_set())
         del_button = CTkButton(newFrame, text="", image=imgtk_del, fg_color="transparent", hover_color="dark red", width=5, height=5, command= lambda index=index, cmd=cmd: delCmd(index, cmd))
@@ -1200,7 +1218,7 @@ def main():
             updateTab()
 
     def updateTab():
-        global isLoaded, player_main
+        global isLoaded
         stopAlert()
         if isConnected and isLinked:
             link_button.configure(fg_color="green", hover_color="#005500")
@@ -1213,6 +1231,11 @@ def main():
             bindAlert()
         elif tab=="Player":
             bindMusic()
+            if isLoaded:
+                pygame.mixer.music.load(music)
+                pygame.mixer.music.play()
+                pygame.mixer.music.pause()
+                play_button.configure(image=imgtk_play)
             connect_button.grid_forget()
             power_button.grid_forget()
             headinglogo.grid_forget()
@@ -1225,8 +1248,7 @@ def main():
                 uuidInput.configure(state="normal")
             bindSettings()
         if tab!="Player":
-            if isPlaying:
-                stop()
+            pygame.mixer.music.unload()
             connect_button.grid(row=0,column=2,rowspan=2,padx=0, sticky='e')
             power_button.grid(row=0,column=3,rowspan=2,padx=10, sticky='e')
             headinglogo.grid(row=0,column=0,rowspan=2,pady=10, sticky='w')
@@ -1464,7 +1486,7 @@ def main():
     #Remote Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 2.8.7 (Stable)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 2.8.8 (Stable)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", compound="right",font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color=("#dbdbdb","#2b2b2b"), hover_color=("#a0a0a0", "#1c1c1c"), image=imgtk3, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Remote"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))

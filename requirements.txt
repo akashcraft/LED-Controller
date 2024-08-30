@@ -2,7 +2,7 @@ customtkinter
 CTkColorPicker
 bleak
 pillow
-python-vlc
+pygame
 keyboard
 mutagen
-opencv-python
+moviepy
