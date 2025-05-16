@@ -3,6 +3,6 @@ CTkColorPicker
 bleak
 pillow
 pygame
-keyboard
+pynput
 mutagen
 moviepy

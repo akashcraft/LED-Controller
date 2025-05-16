@@ -3,10 +3,11 @@
 #Version 2.8.8
 
 import platform
-import asyncio, _thread, os, time, webbrowser, re, subprocess, keyboard, threading, pygame
+import asyncio, _thread, os, time, webbrowser, re, subprocess, threading, pygame
 from moviepy import VideoFileClip
 from bleak import BleakClient
 from PIL import Image
+from pynput import keyboard
 from customtkinter import * # type: ignore
 import tkinter as tk
 import tkinter.messagebox as messagebox
@@ -35,6 +36,26 @@ seekAmount = 0.5
 isRepeating = False
 repeatCmds, repeatCmdsChild = [],[]
 defaultColour = "red"
+
+shift_held = False
+
+def on_press(key):
+    global shift_held
+    if key == keyboard.Key.shift:
+        shift_held = True
+
+def on_release(key):
+    global shift_held
+    if key == keyboard.Key.shift:
+        shift_held = False
+
+# Start listener thread
+def start_keyboard_listener():
+    listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+    listener.daemon = True
+    listener.start()
+
+start_keyboard_listener()
 
 #Custom Configuration
 trailing_flash = leading_flash = trailing_pulse = leading_pulse = trailing_on = leading_on = trailing_off = leading_off =  main_on = main_off = 0
@@ -331,7 +352,7 @@ def main():
     @debounce(0.1)
     def sendColourCB(button,index):
         global settings
-        if keyboard.is_pressed("shift"):
+        if shift_held:
             button.configure(fg_color="#FFFFFF")
             colorpicker.slider.configure(progress_color="#FFFFFF")
             colorpicker.label.configure(text="#FFFFFF",fg_color="#FFFFFF")
