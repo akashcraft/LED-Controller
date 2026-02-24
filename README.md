@@ -54,6 +54,35 @@ If you plan to run the project locally, you will need to modify the `CTkColorPic
 
 LightCraft stores its settings and custom operation codes data in the `Settings.txt` which must be located in the same project folder. If this is not possible, LightCraft will attempt to re-create the files during the pre-GUI checks. Resources folder contains all the GUI elements and this folder **must not** be deleted. LightCraft will not load the GUI in that case.
 
+## MacOS
+Since the application is not signed with an Apple Developer certificate (to avoid the annual $100 Apple Developer Program fee), macOS may block it from opening by default. To proceed, please manually approve the application using one of the following methods:
+
+**Option 1 — Remove Quarantine via Command Line**
+
+1. Open **Terminal**.
+2. Run the following command:
+
+   ```
+   xattr -d com.apple.quarantine /path/to/LightCraft.app
+   ```
+
+**Option 2 — Use Sentinel**
+If you are using **Sentinel** (https://github.com/alienator88/Sentinel):
+
+1. Open **Sentinel**.
+2. Locate the blocked application in the quarantine or security list.
+3. Approve or allow the application.
+4. Relaunch the application.
+
+**Option 3 — Allow from System Settings**
+
+1. Attempt to open the application once.
+2. Open **System Settings** → **Privacy & Security**.
+3. Scroll to the **Security** section.
+4. Click **Open Anyway** next to the blocked application.
+
+After completing one of the above steps, the application should open normally.
+
 ## Who can use this?
 You are free to download and edit the source code files however you like. 
 Should you wish to publish this in your project or socials, please provide appropriate credits.
