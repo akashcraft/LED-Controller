@@ -1,6 +1,8 @@
-Configurations/*
+Configurations/
 __pycache__/*
 output/*
 Settings.txt
 Compiling Script.iss
 .DS_Store
+dist/
+build/

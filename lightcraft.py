@@ -17,6 +17,20 @@ from functools import wraps
 from lightcraft_cli import repeat, enableRepeat, disableRepeat
 from mutagen.mp3 import MP3
 
+import sys
+import os
+
+if getattr(sys, 'frozen', False):
+    os.chdir(os.path.dirname(sys.executable))
+
+def get_external_path(relative_path):
+    try:
+        base_path = sys._MEIPASS # type: ignore
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 root = CTk()
 if os.name == 'posix':
     default_address = "EC4A4BDB-FC15-8CC5-FAB1-9EB6181DE9A5"
@@ -597,7 +611,7 @@ def main():
         match alert:
             case 0:
                 pygame.mixer.music.load(r"./Resources/italyAlert.mp3")
-                loop_thread1 = threading.Thread(target=lambda: asyncio.run(repeat(controller.client, char_uuid, '["0.3 red","0.3 pink"]', 100)))
+                loop_thread1 = threading.Thread(target=lambda: asyncio.run(repeat(controller.client, char_uuid, '["0.3 red","0.3 pink"]', 100))) # type: ignore
                 loop_thread1.start()
             case 1:
                 pygame.mixer.music.load(r"./Resources/japanAlert.mp3")
@@ -1300,7 +1314,7 @@ def main():
             f=open("Settings.txt","w")
         except PermissionError:
             messagebox.showerror("Administrator Privileges Needed","Because of the nature of this LightCraft install, you will need to launch as administrator. To prevent this behaviour, please install LightCraft again on a user directory.")
-            quit()
+            sys.exit()
         f.write(f"LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n{default_address}\nFFD9\n0\n1\n1\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\nSave\n5\n1\nRed\n\nCustom Operation Codes\nEdit the following values which correspond to the data packet being sent to the LED. Useful for different LED Models. NO SPACES. Must end with comma.\n\nFlash\ntrailing,bb,\nrgb_flash,62,\nall_flash,38,\nwhite_flash,37,\npurple_flash,36,\ncyan_flash,35,\nyellow_flash,34,\nblue_flash,33,\ngreen_flash,32,\nred_flash,31,\neyesore_flash,30,\nleading,44,\n\nPulse\ntrailing,BB,\ngb_pulse,2F,\nrb_pulse,2E,\nrg_pulse,2D,\nwhite_pulse,2C,\npurple_pulse,2B,\ncyan_pulse,2A,\nyellow_pulse,29,\nblue_pulse,28,\ngreen_pulse,27,\nred_pulse,26,\nrgb_pulse,61,\nall_pulse,25,\ntrailing,44,\n\nOn\ntrailing_code,CC,\nmain,23,\nleading,33,\n\nOff\ntrailing_code,CC,\nmain,24,\nleading,33,\n\nSingle\ntrailing,56,\norder,r,g,b,\nleading,00,F0,AA,\n")
         f.close()
 
@@ -1473,31 +1487,31 @@ def main():
 
     #Images
     try:
-        image1 = Image.open(r"./Resources/logo.png")
-        image2 = Image.open(r"./Resources/onButton.png")
-        image3 = Image.open(r"./Resources/offButton.png")
-        image4 = Image.open(r"./Resources/pulseHint.png")
-        image5 = Image.open(r"./Resources/flashHint.png")
-        image6 = Image.open(r"./Resources/italy.png")
-        image7 = Image.open(r"./Resources/japan.png")
-        image8 = Image.open(r"./Resources/france.png")
-        image9 = Image.open(r"./Resources/usa.png")
-        image11 = Image.open(r"./Resources/play.png")
-        image12 = Image.open(r"./Resources/pause.png")
-        image13 = Image.open(r"./Resources/stop.png")
-        image14 = Image.open(r"./Resources/link.png")
-        image16 = Image.open(r"./Resources/add.png")
-        image17 = Image.open(r"./Resources/folder.png")
-        image18 = Image.open(r"./Resources/save.png")
-        image15 = Image.open(r"./Resources/saveSuccess.png")
-        image19 = Image.open(r"./Resources/delete.png")
-        image20 = Image.open(r"./Resources/copy.png")
-        image21 = Image.open(r"./Resources/saveFail.png")
-        image22 = Image.open(r"./Resources/bluetooth.png")
-        image23 = Image.open(r"./Resources/deleteNo.png")
+        image1 = Image.open(get_external_path("Resources/logo.png"))
+        image2 = Image.open(get_external_path("Resources/onButton.png"))
+        image3 = Image.open(get_external_path("Resources/offButton.png"))
+        image4 = Image.open(get_external_path("Resources/pulseHint.png"))
+        image5 = Image.open(get_external_path("Resources/flashHint.png"))
+        image6 = Image.open(get_external_path("Resources/italy.png"))
+        image7 = Image.open(get_external_path("Resources/japan.png"))
+        image8 = Image.open(get_external_path("Resources/france.png"))
+        image9 = Image.open(get_external_path("Resources/usa.png"))
+        image11 = Image.open(get_external_path("Resources/play.png"))
+        image12 = Image.open(get_external_path("Resources/pause.png"))
+        image13 = Image.open(get_external_path("Resources/stop.png"))
+        image14 = Image.open(get_external_path("Resources/link.png"))
+        image16 = Image.open(get_external_path("Resources/add.png"))
+        image17 = Image.open(get_external_path("Resources/folder.png"))
+        image18 = Image.open(get_external_path("Resources/save.png"))
+        image15 = Image.open(get_external_path("Resources/saveSuccess.png"))
+        image19 = Image.open(get_external_path("Resources/delete.png"))
+        image20 = Image.open(get_external_path("Resources/copy.png"))
+        image21 = Image.open(get_external_path("Resources/saveFail.png"))
+        image22 = Image.open(get_external_path("Resources/bluetooth.png"))
+        image23 = Image.open(get_external_path("Resources/deleteNo.png"))
     except:
         tk.messagebox.showerror("Missing Resources","LightCraft could not find critical resources. The Resources folder may have been corrupted or deleted. Please re-install LightCraft from official sources.") # type: ignore #Missing Resources
-        quit()
+        sys.exit()
     imgtk1 = CTkImage(light_image=image1,size=(60,60))
     imgtk2 = CTkImage(light_image=image2,size=(25,25))
     imgtk3 = CTkImage(light_image=image3,size=(25,25))
