@@ -6,3 +6,4 @@ Compiling Script.iss
 .DS_Store
 dist/
 build/
+drivers/__pycache__/

@@ -1,5 +1,5 @@
 # LightCraft
-Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj)
+Software to control Bluetooth LED Strips like [QHM-0A9E](https://a.co/d/eOTiWzj) and [Govee-H618F](https://www.amazon.ca/dp/B09VBZC2CX?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1)
 
 <img width=600px src="https://github.com/user-attachments/assets/cd95f957-19d0-464f-b410-fe24c6800e57">
 

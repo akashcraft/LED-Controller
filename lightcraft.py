@@ -1,6 +1,6 @@
 #LightCraft Source Code
 #Made by Akash Samanta
-#Version 2.8.8
+#Version 2.9.0
 
 import platform
 import asyncio, _thread, os, time, webbrowser, re, subprocess, threading, pygame
@@ -14,7 +14,9 @@ import tkinter.messagebox as messagebox
 from CTkColorPicker import * # type: ignore
 
 from functools import wraps
-from lightcraft_cli import repeat, enableRepeat, disableRepeat
+from drivers import (DEFAULT_DRIVER, DRIVERS, Sequence, create_driver,
+                     display_for_name, display_names, name_for_display,
+                     sequence_from)
 from mutagen.mp3 import MP3
 
 import sys
@@ -75,6 +77,11 @@ start_keyboard_listener()
 trailing_flash = leading_flash = trailing_pulse = leading_pulse = trailing_on = leading_on = trailing_off = leading_off =  main_on = main_off = 0
 trailing_single = leading_single = order_single = []
 
+#Driver Configuration - opcodes feed the QHM driver, other drivers ignore them
+driverName = DEFAULT_DRIVER
+opcodes = {}
+driver = None
+
 validColours = {
     'red': [255, 0, 0],
     'orange': [204, 51, 0],
@@ -134,12 +141,15 @@ colourToRGB = {
 }
 
 class BluetoothController:
-    def __init__(self, address, char_uuid):
+    def __init__(self, address, char_uuid, driver):
         self.address = address
         self.char_uuid = char_uuid
+        self.driver = driver
         self.client = None
         self.loop = asyncio.new_event_loop()
         self.connected = False
+        self.effect_task = None
+        self.keepalive_task = None
         asyncio.set_event_loop(self.loop)
 
     async def connect(self):
@@ -147,6 +157,8 @@ class BluetoothController:
         try:
             await self.client.connect()
             self.connected = True
+            if self.driver.keepalive:
+                self.keepalive_task = self.loop.create_task(self.runKeepalive())
         except Exception as e:
             print(f"Failed to connect: {e}")
             self.connected = False
@@ -162,13 +174,64 @@ class BluetoothController:
         self.loop.call_soon_threadsafe(close_loop)
 
     async def disconnect(self):
+        self.cancelEffect()
+        if self.keepalive_task:
+            self.keepalive_task.cancel()
+            self.keepalive_task = None
         if self.client:
             await self.client.disconnect()
             self.client = None
 
     async def sendCmd(self, data):
         if self.client:
-            await self.client.write_gatt_char(self.char_uuid, data)
+            await self.client.write_gatt_char(self.char_uuid, data, response=self.driver.write_with_response)
+
+    #Effects
+    def cancelEffect(self):
+        if self.effect_task and not self.effect_task.done():
+            self.effect_task.cancel()
+        self.effect_task = None
+
+    async def runSequence(self, effect):
+        try:
+            while True:
+                for packet, delay in effect.frames:
+                    await self.sendCmd(packet)
+                    if delay:
+                        await asyncio.sleep(delay)
+                if not effect.loop:
+                    break
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            print(f"Effect stopped: {e}")
+
+    async def applyEffect(self, effect):
+        #Anything new supersedes a running sequence, including a solid colour.
+        self.cancelEffect()
+        if isinstance(effect, Sequence):
+            self.effect_task = self.loop.create_task(self.runSequence(effect))
+        else:
+            for packet in effect.frames:
+                await self.sendCmd(packet)
+
+    def play(self, effect):
+        """Run an Effect built by the driver. A driver returns None when its
+        hardware cannot do the requested command at all."""
+        if effect is None:
+            return None
+        return self.run_coroutine(self.applyEffect(effect))
+
+    async def runKeepalive(self):
+        packet, period = self.driver.keepalive
+        try:
+            while True:
+                await asyncio.sleep(period)
+                await self.sendCmd(packet)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            print(f"Keepalive stopped: {e}")
 
     def run_coroutine(self, coro):
         return asyncio.run_coroutine_threadsafe(coro, self.loop)
@@ -207,8 +270,12 @@ def main():
             uuidInput.configure(state="normal")
             uuidInputButton.configure(state="normal")
             resetButton.configure(state="normal")
+            driverCombo.configure(state="normal")
             disconnect()
         else:
+            if not address.strip():
+                messagebox.showerror("No Address Set", f"There is no address saved for the {display_for_name(driverName)} driver yet. Enter your LED strip's address in Settings and press Save before connecting.")
+                return
             future = controller.run_coroutine(controller.connect())
             connect_button.configure(image=None,text="Connecting", state="disabled",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"))
             macInput.configure(state="disabled")
@@ -216,6 +283,7 @@ def main():
             uuidInput.configure(state="disabled")
             uuidInputButton.configure(state="disabled")
             resetButton.configure(state="disabled")
+            driverCombo.configure(state="disabled")
             root.after(20, lambda: check_connection(future))
 
     def check_connection(future):
@@ -239,6 +307,7 @@ def main():
                 uuidInput.configure(state="disabled")
                 uuidInputButton.configure(state="disabled")
                 resetButton.configure(state="disabled")
+                driverCombo.configure(state="disabled")
             else:
                 connect_button.configure(image=None,text="Reconnect", fg_color="#AA0000", hover_color="#880000", state="normal")
                 messagebox.showerror("Connection Failure", "LightCraft failed to connect with your LED Strips. Please make sure that your Bluetooth is turned on and that your LED Strips are not bonded with another device. Verify the MAC Address in Settings.")
@@ -247,6 +316,7 @@ def main():
                 uuidInput.configure(state="normal")
                 uuidInputButton.configure(state="normal")
                 resetButton.configure(state="normal")
+                driverCombo.configure(state="normal")
         else:
             root.after(20, lambda: check_connection(future))
 
@@ -258,12 +328,10 @@ def main():
         if not isOn:
             isOn = True
             power_button.configure(image=imgtk2)
-            data = bytearray([trailing_on,main_on,leading_on])
         else:
             isOn = False
             power_button.configure(image=imgtk3)
-            data = bytearray([trailing_off,main_off,leading_off])
-        controller.run_coroutine(controller.sendCmd(data))
+        controller.play(driver.power(isOn))
 
     #Commands
     def swapPulseFlash():
@@ -313,21 +381,11 @@ def main():
 
     @debounce(0.1)
     def sendHex(data):
-        global trailing_single, leading_single, order_single
         intervalSlider.configure(progress_color=data)
-        data = data[1:]
-        r = int(data[0:2], 16)
-        g = int(data[2:4], 16)
-        b = int(data[4:6], 16)
-        color_map = {'r': r, 'g': g, 'b': b}
-        rearranged_values = [color_map[color.lower()] for color in order_single]
-        data = bytearray(trailing_single + rearranged_values + leading_single)
-        controller.run_coroutine(controller.sendCmd(data))
-    
+        controller.play(driver.hex(data))
+
     def sendHexMusic(data):
-        data = data[1:]
-        data = bytearray([0x56, int(data[0:2], 16), int(data[2:4], 16), int(data[4:6], 16), 0x00, 0xf0, 0xaa])
-        controller.run_coroutine(controller.sendCmd(data))
+        controller.play(driver.hex(data))
 
     def sendColourMusic(data):
         hex_value = '#{:02x}{:02x}{:02x}'.format(*validColours[data])
@@ -412,12 +470,12 @@ def main():
         isPulsing = True
         isFlashing = False
         if isSet==False:
-            data = bytearray([trailing_pulse,validPulseCode[pulseflash_var.get()],int(interval),leading_pulse])
+            colour = pulseflash_var.get().split("_")[0]
             linkColour = "unset"
-            sliderColourFun(pulseflash_var.get().split("_")[0]) 
+            sliderColourFun(colour)
         else:
-            data = bytearray([trailing_pulse,validPulseCode[linkColour+"_pulse"],int(interval),leading_pulse])
-        controller.run_coroutine(controller.sendCmd(data))
+            colour = linkColour
+        controller.play(driver.pulse(colour, int(interval)))
 
     def sendPulseMusic(colour, freq):
         if colour == "rainbow":
@@ -430,8 +488,7 @@ def main():
             colour = "gb"
         elif colour == "red green":
             colour = "rg"
-        data = bytearray([trailing_pulse,validPulseCode[colour+"_pulse"],10-int(freq),leading_pulse])
-        controller.run_coroutine(controller.sendCmd(data))
+        controller.play(driver.pulse(colour, 10-int(freq)))
 
     @debounce(0.1)
     def sendFlash(isSet=False):
@@ -439,20 +496,19 @@ def main():
         isPulsing = False
         isFlashing = True
         if isSet==False:
-            data = bytearray([trailing_flash,validFlashCode[pulseflash_var.get()],int(interval),leading_flash])
+            colour = pulseflash_var.get().split("_")[0]
             linkColour = "unset"
-            sliderColourFun(pulseflash_var.get().split("_")[0])
+            sliderColourFun(colour)
         else:
-            data = bytearray([trailing_flash,validFlashCode[linkColour+"_flash"],int(interval),leading_flash])
-        controller.run_coroutine(controller.sendCmd(data))
+            colour = linkColour
+        controller.play(driver.flash(colour, int(interval)))
 
     def sendFlashMusic(colour, freq):
         if colour == "rainbow":
             colour = "all"
         elif colour == "primary":
             colour = "rgb"
-        data = bytearray([trailing_flash,validFlashCode[colour+"_flash"],10-int(freq),leading_flash])
-        controller.run_coroutine(controller.sendCmd(data))
+        controller.play(driver.flash(colour, 10-int(freq)))
 
     @debounce(0.1)
     def updateInterval():
@@ -487,17 +543,32 @@ def main():
             CTkButton(frame,text="", fg_color="#{:02x}{:02x}{:02x}".format(r, g, b), hover=False, font=CTkFont(size=bsize), width=sgwidth, corner_radius=sgradius, height=sgheight, command=lambda: sendColourWB(r,g,b)).grid(row=row,column=col,padx=(10,0),pady=(10,0))
 
     #Settings Functions
+    #Every driver remembers its own strip, so switching driver switches device.
+    #Row 67 onward is one "name,address,characteristic" line per driver, in
+    #registration order. Lines 2 and 3 mirror whichever one is active.
+    def deviceRow(name):
+        return 67 + list(DRIVERS).index(name)
+
+    def loadDevice(name):
+        return settings[deviceRow(name)].rstrip("\n").split(",")[1:3]
+
+    def saveDevice():
+        global settings
+        settings[2] = address + "\n"
+        settings[3] = char_uuid + "\n"
+        settings[deviceRow(driverName)] = f"{driverName},{address},{char_uuid}\n"
+
     def macInputSave():
         global settings, address
         address = macInputVar.get()
         if os.name == 'posix' and platform.system() == 'Darwin':
-            settings[2] = macInputVar.get() + "\n"
+            saveDevice()
             writesettings()
             recreate_controller()
             macInputButton.configure(state="disabled", text="Saved", fg_color="green")
             macInputButton.after(1000, lambda: macInputButton.configure(state="normal", text="Save", fg_color="#1f6aa5"))
         elif validate_mac_address(macInputVar.get()):
-            settings[2] = macInputVar.get() + "\n"
+            saveDevice()
             writesettings()
             recreate_controller()
             macInputButton.configure(state="disabled", text="Saved", fg_color="green")
@@ -516,14 +587,30 @@ def main():
     def uuidInputSave():
         global settings, char_uuid
         char_uuid = uuidInputVar.get()
-        if len(uuidInputVar.get()) == 4:
-            settings[3] = uuidInputVar.get() + "\n"
+        #Short form for QHM style strips, full 128 bit form for Govee.
+        if len(uuidInputVar.get()) in (4, 36):
+            saveDevice()
             writesettings()
             recreate_controller()
             uuidInputButton.configure(state="disabled", text="Saved", fg_color="green")
             uuidInputButton.after(1000, lambda: uuidInputButton.configure(state="normal", text="Save", fg_color="#1f6aa5"))
         else:
-            messagebox.showerror("Invalid UUID", "Please enter a UUID with exactly 4 characters.")
+            messagebox.showerror("Invalid UUID", "Please enter either a 4 character UUID or a full 36 character UUID.")
+
+    def driverSave(value):
+        global settings, driverName, driver, address, char_uuid
+        #Stash the outgoing strip before switching, then restore the incoming
+        #one. Address and characteristic both belong to the device, not the app.
+        saveDevice()
+        driverName = name_for_display(value)
+        settings[66] = driverName + "\n"
+        driver = create_driver(driverName, opcodes)
+        address, char_uuid = loadDevice(driverName)
+        macInputVar.set(address)
+        uuidInputVar.set(char_uuid)
+        saveDevice()
+        writesettings()
+        recreate_controller()
 
     def start_event_loop(controller):
         asyncio.set_event_loop(controller.loop)
@@ -537,7 +624,7 @@ def main():
             if loop_thread.is_alive():
                 loop_thread.join()
         # Start the new controller
-        controller = BluetoothController(address, char_uuid)
+        controller = BluetoothController(address, char_uuid, driver)
         loop_thread = threading.Thread(target=start_event_loop, args=(controller,))
         loop_thread.start()
 
@@ -605,14 +692,14 @@ def main():
         global interval
         if not isOn:
             togglePower()
-        enableRepeat()
         alert = alert_var.get()
         pulseflash_var.set("red_pulse")
         match alert:
             case 0:
                 pygame.mixer.music.load(r"./Resources/italyAlert.mp3")
-                loop_thread1 = threading.Thread(target=lambda: asyncio.run(repeat(controller.client, char_uuid, '["0.3 red","0.3 pink"]', 100))) # type: ignore
-                loop_thread1.start()
+                #Alternate red and pink through the driver rather than writing
+                #QHM packets straight at the client. stopAlert supersedes it.
+                controller.play(sequence_from([driver.rgb(255,0,0), driver.rgb(255,0,40)], 0.3))
             case 1:
                 pygame.mixer.music.load(r"./Resources/japanAlert.mp3")
                 interval = 0
@@ -632,7 +719,6 @@ def main():
     def stopAlert():
         pygame.mixer.music.stop()
         pygame.mixer.music.unload()
-        disableRepeat()
         sendColourMusic(defaultColour)
         alertButton.configure(text="Play Alert",fg_color=("#3b8ed0","#1f6aa5"),hover_color=("#36719f","#144870"), command=playAlert)
 
@@ -1277,6 +1363,7 @@ def main():
         tab = mainframe.get()
         macInput.configure(state="disabled")
         uuidInput.configure(state="disabled")
+        driverCombo.configure(state="disabled")
         if tab=="Remote":
             bindBasic()
         elif tab=="Alert":
@@ -1298,6 +1385,7 @@ def main():
             if not isConnected:
                 macInput.configure(state="normal")
                 uuidInput.configure(state="normal")
+                driverCombo.configure(state="normal")
             bindSettings()
         if tab!="Player":
             pygame.mixer.music.unload()
@@ -1315,7 +1403,11 @@ def main():
         except PermissionError:
             messagebox.showerror("Administrator Privileges Needed","Because of the nature of this LightCraft install, you will need to launch as administrator. To prevent this behaviour, please install LightCraft again on a user directory.")
             sys.exit()
-        f.write(f"LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n{default_address}\nFFD9\n0\n1\n1\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\nSave\n5\n1\nRed\n\nCustom Operation Codes\nEdit the following values which correspond to the data packet being sent to the LED. Useful for different LED Models. NO SPACES. Must end with comma.\n\nFlash\ntrailing,bb,\nrgb_flash,62,\nall_flash,38,\nwhite_flash,37,\npurple_flash,36,\ncyan_flash,35,\nyellow_flash,34,\nblue_flash,33,\ngreen_flash,32,\nred_flash,31,\neyesore_flash,30,\nleading,44,\n\nPulse\ntrailing,BB,\ngb_pulse,2F,\nrb_pulse,2E,\nrg_pulse,2D,\nwhite_pulse,2C,\npurple_pulse,2B,\ncyan_pulse,2A,\nyellow_pulse,29,\nblue_pulse,28,\ngreen_pulse,27,\nred_pulse,26,\nrgb_pulse,61,\nall_pulse,25,\ntrailing,44,\n\nOn\ntrailing_code,CC,\nmain,23,\nleading,33,\n\nOff\ntrailing_code,CC,\nmain,24,\nleading,33,\n\nSingle\ntrailing,56,\norder,r,g,b,\nleading,00,F0,AA,\n")
+        #One device row per driver, prefilled with that strip's known address.
+        #The active driver's address is platform dependent, so it comes from
+        #here rather than from the driver class.
+        deviceRows = "".join(f"{name},{default_address if name == DEFAULT_DRIVER else cls.default_address},{cls.default_char_uuid}\n" for name, cls in DRIVERS.items())
+        f.write(f"LightCraft Settings - Any corruption may lead to configuration loss\nMade by Akash Samanta\n{default_address}\nFFD9\n0\n1\n1\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\n#FFFFFF\nSave\n5\n1\nRed\n\nCustom Operation Codes\nEdit the following values which correspond to the data packet being sent to the LED. Useful for different LED Models. NO SPACES. Must end with comma.\n\nFlash\ntrailing,bb,\nrgb_flash,62,\nall_flash,38,\nwhite_flash,37,\npurple_flash,36,\ncyan_flash,35,\nyellow_flash,34,\nblue_flash,33,\ngreen_flash,32,\nred_flash,31,\neyesore_flash,30,\nleading,44,\n\nPulse\ntrailing,BB,\ngb_pulse,2F,\nrb_pulse,2E,\nrg_pulse,2D,\nwhite_pulse,2C,\npurple_pulse,2B,\ncyan_pulse,2A,\nyellow_pulse,29,\nblue_pulse,28,\ngreen_pulse,27,\nred_pulse,26,\nrgb_pulse,61,\nall_pulse,25,\ntrailing,44,\n\nOn\ntrailing_code,CC,\nmain,23,\nleading,33,\n\nOff\ntrailing_code,CC,\nmain,24,\nleading,33,\n\nSingle\ntrailing,56,\norder,r,g,b,\nleading,00,F0,AA,\n\nDriver\n{DEFAULT_DRIVER}\n{deviceRows}")
         f.close()
 
     #Quit or Relaunch Application
@@ -1332,9 +1424,17 @@ def main():
     #For other functions to write Settings
     def writesettings():
         global settings
-        f=open("Settings.txt","w")
+        #Write to a temporary file and swap it in, so an interrupted save
+        #cannot leave a half written Settings.txt behind. A truncated file
+        #fails the corruption check on the next launch and takes the user's
+        #custom operation codes with it.
+        temp = "Settings.txt.tmp"
+        f=open(temp,"w")
         f.writelines(settings)
+        f.flush()
+        os.fsync(f.fileno())
         f.close()
+        os.replace(temp, "Settings.txt")
 
     #Normal Reset from Application
     def resetsettings():
@@ -1348,7 +1448,8 @@ def main():
             keyBindSwitch.select()
             loadedSwitch.select()
             macInputVar.set(default_address)
-            uuidInputVar.set("FFD9")
+            uuidInputVar.set(DRIVERS[DEFAULT_DRIVER].default_char_uuid)
+            driverVar.set(display_for_name(DEFAULT_DRIVER))
             customColour1.configure(fg_color="#FFFFFF")
             customColour2.configure(fg_color="#FFFFFF")
             customColour3.configure(fg_color="#FFFFFF")
@@ -1359,6 +1460,9 @@ def main():
             updateTab()
             createsettings()
             applysettings()
+            #applysettings rebuilds the driver, so the controller needs the
+            #new one rather than whichever driver was selected before the reset
+            recreate_controller()
 
     #Settings Corruption Reset
     def resetsettings2():
@@ -1367,7 +1471,7 @@ def main():
 
     #Boot and apply settings
     def applysettings():
-        global settings, address, char_uuid, seekAmount, defaultColour, validFlashCode, validPulseCode, leading_flash, trailing_flash, leading_pulse, trailing_pulse, trailing_off, leading_off, trailing_on, leading_on, trailing_single, leading_single, main_on, main_off, order_single
+        global settings, address, char_uuid, seekAmount, defaultColour, validFlashCode, validPulseCode, leading_flash, trailing_flash, leading_pulse, trailing_pulse, trailing_off, leading_off, trailing_on, leading_on, trailing_single, leading_single, main_on, main_off, order_single, driverName, driver, opcodes
         f=open("Settings.txt","a+")
         f.seek(0)
         settings=f.readlines()
@@ -1433,8 +1537,45 @@ def main():
         except:
             messagebox.showerror("Invalid Custom Operation Codes","The custom operation codes in the settings file are invalid. LightCraft will attempt to restore default operation codes.")
             resetsettings2()
-        address=settings[2][:-1]
-        char_uuid=settings[3][:-1]
+        opcodes = {
+            "on": (trailing_on, main_on, leading_on),
+            "off": (trailing_off, main_off, leading_off),
+            "single": (trailing_single, order_single, leading_single),
+            "pulse": (trailing_pulse, validPulseCode, leading_pulse),
+            "flash": (trailing_flash, validFlashCode, leading_flash),
+        }
+        #Driver section, appended in 2.9.0. Settings files written by an older
+        #build simply end at the Single block, so migrate them in place rather
+        #than failing the corruption check and wiping their operation codes.
+        try:
+            if settings[65][:-1] != "Driver" or settings[66][:-1] not in DRIVERS:
+                raise ValueError
+            driverName = settings[66][:-1]
+        except (IndexError, ValueError):
+            driverName = DEFAULT_DRIVER
+        try:
+            devices = {}
+            for line in settings[67:]:
+                parts = line.rstrip("\n").split(",")
+                if len(parts) != 3 or parts[0] not in DRIVERS:
+                    raise ValueError
+                devices[parts[0]] = (parts[1], parts[2])
+            if set(devices) != set(DRIVERS):
+                raise ValueError
+        except (IndexError, ValueError):
+            #Hand the address already in the file to whichever driver is active
+            #so an existing strip keeps working, and leave the rest to be set.
+            devices = {name: (cls.default_address, cls.default_char_uuid) for name, cls in DRIVERS.items()}
+            devices[driverName] = (settings[2][:-1], settings[3][:-1])
+            del settings[64:]
+            settings.extend(["\n", "Driver\n", driverName + "\n"])
+        #Rewrite the rows in registration order so deviceRow() can index them.
+        settings[67:] = [f"{name},{devices[name][0]},{devices[name][1]}\n" for name in DRIVERS]
+        driver = create_driver(driverName, opcodes)
+        address, char_uuid = devices[driverName]
+        settings[2] = address + "\n"
+        settings[3] = char_uuid + "\n"
+        writesettings()
         seekAmount=float(settings[13][:-1])
         defaultColour=settings[15][:-1].lower()
         if settings[14][:-1]=="1":
@@ -1461,7 +1602,7 @@ def main():
     root.resizable(False,True)
 
     #Start Controller
-    controller = BluetoothController(address, char_uuid)
+    controller = BluetoothController(address, char_uuid, driver)
     loop_thread = threading.Thread(target=start_event_loop, args=(controller,))
     loop_thread.start()
 
@@ -1538,7 +1679,7 @@ def main():
     #Remote Elements
     headinglogo = CTkButton(root, text="", width=80, image=imgtk1,command=lambda :webbrowser.open("https://github.com/akashcraft/LED-Controller"), hover=False, fg_color="transparent")
     heading1 = CTkLabel(root, text="LightCraft", font=CTkFont(size=30)) #LightCraft
-    heading2 = CTkLabel(root, text="Version 2.8.8 (Stable)", font=CTkFont(size=13)) #Version
+    heading2 = CTkLabel(root, text="Version 2.9.0 (Stable)", font=CTkFont(size=13)) #Version
     connect_button = CTkButton(root, text="Connect", compound="right",font=CTkFont(size=bsize), width=bwidth, height=bheight, command=connect)
     power_button = CTkButton(root, text="", fg_color=("#dbdbdb","#2b2b2b"), hover_color=("#a0a0a0", "#1c1c1c"), image=imgtk3, font=CTkFont(size=bsize), width=sgwidth, corner_radius=10, height=bheight, command=togglePower)
     colorpicker = CTkColorPicker(mainframe.tab("Remote"), width=257, orientation=HORIZONTAL, command=lambda e: sendHex(e))
@@ -1617,49 +1758,56 @@ def main():
     mainframe.tab("Settings").grid_rowconfigure(0,weight=1)
     settingschild.grid(row=0,column=0,padx=0,pady=0, sticky='nsew')
     settingschild.grid_columnconfigure(1,weight=1)
-    CTkLabel(settingschild, text="LED MAC Address").grid(row=0,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Characteristic UUID").grid(row=1,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="LED Driver").grid(row=0,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="LED MAC Address").grid(row=1,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Characteristic UUID").grid(row=2,column=0,padx=5,pady=(4,0), sticky='w')
     darkModeLabel = CTkLabel(settingschild, text="Dark Mode")
-    darkModeLabel.grid(row=2,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Auto Connect").grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Enable Keyboard Shortcuts").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Remember Loaded Files").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Media Configurations").grid(row=8,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Edit Operation Codes (Advanced)").grid(row=10,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Reset Settings").grid(row=9,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="User Manual").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
-    CTkLabel(settingschild, text="Default Colour").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
+    darkModeLabel.grid(row=3,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Auto Connect").grid(row=4,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Enable Keyboard Shortcuts").grid(row=5,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Remember Loaded Files").grid(row=6,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Media Configurations").grid(row=9,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Edit Operation Codes (Advanced)").grid(row=11,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Reset Settings").grid(row=10,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="User Manual").grid(row=8,column=0,padx=5,pady=(4,0), sticky='w')
+    CTkLabel(settingschild, text="Default Colour").grid(row=7,column=0,padx=5,pady=(4,0), sticky='w')
+    driverVar = tk.StringVar(value=display_for_name(driverName))
+    driverCombo = CTkComboBox(settingschild, variable=driverVar, values=display_names(), width=170, height=20, border_width=0, corner_radius=3, command=driverSave)
+    #Spans both columns so its width does not widen the column the Save buttons
+    #sit in, which would push the entries away from them.
+    driverCombo.grid(row=0,column=1,columnspan=2,padx=(5,7),pady=(4,0), sticky='e')
+    driverCombo.bind("<FocusIn>",lambda e:root.focus_set())
     macInputVar = tk.StringVar(value=settings[2][:-1])
     macInput = CTkEntry(settingschild, placeholder_text="32:06:C2:00:0A:9E", textvariable=macInputVar, height=5, corner_radius=5, justify='right')
-    macInput.grid(row=0,column=1,padx=5,pady=(4,0), sticky='e')
+    macInput.grid(row=1,column=1,padx=5,pady=(4,0), sticky='e')
     macInputButton= CTkButton(settingschild, text="Save", width=60, height=15, corner_radius=5, command=macInputSave)
-    macInputButton.grid(row=0,column=2,padx=8,pady=(4,0), sticky='e')
+    macInputButton.grid(row=1,column=2,padx=8,pady=(4,0), sticky='e')
     uuidInputVar = tk.StringVar(value=settings[3][:-1])
     uuidInput = CTkEntry(settingschild, placeholder_text="FFD9", textvariable=uuidInputVar, height=5, corner_radius=5, justify='right')
     uuidInputButton = CTkButton(settingschild, text="Save", width=60, height=15, corner_radius=5, command=uuidInputSave)
-    uuidInputButton.grid(row=1,column=2,padx=8,pady=(4,0), sticky='e')
-    uuidInput.grid(row=1,column=1,padx=5,pady=(4,0), sticky='e')
+    uuidInputButton.grid(row=2,column=2,padx=8,pady=(4,0), sticky='e')
+    uuidInput.grid(row=2,column=1,padx=5,pady=(4,0), sticky='e')
     darkModeVar = tk.IntVar(value=int(settings[14][:-1]))
     darkModeSwitch = CTkCheckBox(settingschild, text="", variable=darkModeVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleTheme)
-    darkModeSwitch.grid(row=2,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    darkModeSwitch.grid(row=3,column=2,padx=(5,0),pady=(4,0), sticky='e')
     autoCSVar = tk.IntVar(value=int(settings[4][:-1]))
     autoCSwitch = CTkCheckBox(settingschild, text="", variable=autoCSVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleAutoCS)
-    autoCSwitch.grid(row=3,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    autoCSwitch.grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
     keyBindVar = tk.IntVar(value=int(settings[5][:-1]))
     keyBindSwitch = CTkCheckBox(settingschild, text="", variable=keyBindVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleKeyBind)
-    keyBindSwitch.grid(row=4,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    keyBindSwitch.grid(row=5,column=2,padx=(5,0),pady=(4,0), sticky='e')
     loadedVar = tk.IntVar(value=int(settings[6][:-1]))
     loadedSwitch = CTkCheckBox(settingschild, text="", variable=loadedVar, checkbox_height=15, checkbox_width=15, border_width=1, corner_radius=5, width=0, command=toggleLoaded)
-    loadedSwitch.grid(row=5,column=2,padx=(5,0),pady=(4,0), sticky='e')
+    loadedSwitch.grid(row=6,column=2,padx=(5,0),pady=(4,0), sticky='e')
     defaultColourVar = tk.StringVar(value=settings[15][:-1])
     defaultCombo = CTkComboBox(settingschild, variable=defaultColourVar, values=[color.capitalize() for color in validColours.keys()], width=70, height=20, border_width=0, corner_radius=3, command=updateDefaultColour)
-    defaultCombo.grid(row=6,column=2,padx=(8,7), sticky='e')
+    defaultCombo.grid(row=7,column=2,padx=(8,7), sticky='e')
     defaultCombo.bind("<FocusIn>",lambda e:root.focus_set())
-    CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=showMusic).grid(row=8,column=2,padx=8,pady=(4,0), sticky='e')
-    CTkButton(settingschild, text="Edit", width=60, height=15, corner_radius=5, command=openSettings).grid(row=10,column=2,padx=8,pady=(4,0), sticky='e')
+    CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=showMusic).grid(row=9,column=2,padx=8,pady=(4,0), sticky='e')
+    CTkButton(settingschild, text="Edit", width=60, height=15, corner_radius=5, command=openSettings).grid(row=11,column=2,padx=8,pady=(4,0), sticky='e')
     resetButton = CTkButton(settingschild, text="Reset", width=60, height=15, corner_radius=5, command=resetsettings)
-    resetButton.grid(row=9,column=2,padx=8,pady=(4,0), sticky='e')
-    CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=openManual).grid(row=7,column=2,padx=8,pady=(4,0), sticky='e')
+    resetButton.grid(row=10,column=2,padx=8,pady=(4,0), sticky='e')
+    CTkButton(settingschild, text="Open", width=60, height=15, corner_radius=5, command=openManual).grid(row=8,column=2,padx=8,pady=(4,0), sticky='e')
 
     #Alert
     mainframe.tab("Alert").grid_columnconfigure(0,weight=1)
